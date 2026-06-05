@@ -25,7 +25,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from config import SimulationConfig
 
-from triplets import extract_triplets
+from triplets import extract_triplets_batch
 
 log = logging.getLogger(__name__)
 
@@ -75,8 +75,12 @@ class GhostMemory(AgentMemory):
         Extract triplets from `text` for each active dimension, then write
         them to the agent's KG via GhostKG.
         """
-        for dim in self._dimensions:
-            triplets = await extract_triplets(text, dim, self._config)
+        triplet_batches = await extract_triplets_batch(
+            [(text, dim) for dim in self._dimensions],
+            self._config,
+        )
+
+        for dim, triplets in zip(self._dimensions, triplet_batches):
             if not triplets:
                 continue
 

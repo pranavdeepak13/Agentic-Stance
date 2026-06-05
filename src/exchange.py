@@ -16,6 +16,7 @@ The simulation loop (simulation.py) decides what to do with it next.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
@@ -41,6 +42,17 @@ class ExchangeTurn:
     speaker_name: str
     listener_id:  str
     utterance:    str
+
+
+@dataclass(frozen=True)
+class ExchangeJob:
+    agent_a: "AgentPersona"
+    agent_b: "AgentPersona"
+    n_turns: int
+    current_stances: dict[str, "LikertStance"]
+    memory: "AgentMemory"
+    config: "SimulationConfig"
+    sim_clock: str
 
 
 async def run_exchange(
@@ -108,6 +120,31 @@ async def run_exchange(
         )
 
     return exchange_log
+
+
+async def run_exchange_jobs(jobs: list[ExchangeJob]) -> list[list[ExchangeTurn]]:
+    """
+    Run multiple exchange jobs concurrently.
+
+    Jobs must be independent: no shared mutable stance state, no overlapping
+    participants that would require sequential updates between jobs.
+    """
+    if not jobs:
+        return []
+    return await asyncio.gather(
+        *[
+            run_exchange(
+                job.agent_a,
+                job.agent_b,
+                job.n_turns,
+                job.current_stances,
+                job.memory,
+                job.config,
+                job.sim_clock,
+            )
+            for job in jobs
+        ]
+    )
 
 
 def _format_history(exchange_log: list[ExchangeTurn]) -> str:

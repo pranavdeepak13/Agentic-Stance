@@ -25,7 +25,7 @@ if TYPE_CHECKING:
     from personas import AgentPersona
 
 from config import AnnotationError, parse_likert
-from llm import llm_call
+from llm import LLMRequest, llm_call, llm_call_many
 from prompts import (
     LIKERT_SCALE_DEFINITION,
     AnnotatorSystemPrompt,
@@ -74,6 +74,54 @@ async def annotate(
         f"[Turn {i + 1}] {utt}" for i, utt in enumerate(agent_utterances)
     )
 
+    result = await annotate_many([(agent, utterances_text, previous_stance)], config)
+    return result[0]
+
+
+async def annotate_many(
+    items: list[tuple["AgentPersona", str, "LikertStance"]],
+    config: "SimulationConfig",
+) -> list["LikertStance"]:
+    """
+    Batch annotation for many agents.
+
+    The caller passes the already-filtered utterances text for each agent.
+    """
+    if not items:
+        return []
+
+    llm_requests: list[LLMRequest] = []
+    for agent, utterances_text, _previous_stance in items:
+        system = _system_prompt.render(
+            topic=config.topic,
+            scale_definition=LIKERT_SCALE_DEFINITION,
+        )
+        user = _user_prompt.render(
+            name=agent.name,
+            topic=config.topic,
+            utterances=utterances_text,
+        )
+        llm_requests.append(LLMRequest(system=system, user=user))
+
+    outputs = await llm_call_many(llm_requests, config)
+    annotated: list["LikertStance"] = []
+    for (agent, _utterances_text, previous_stance), raw in zip(items, outputs):
+        try:
+            annotated.append(parse_likert(raw))
+        except AnnotationError as exc:
+            annotated.append(
+                await _retry_annotation(agent, _utterances_text, previous_stance, config, exc)
+            )
+    return annotated
+
+
+async def _retry_annotation(
+    agent: "AgentPersona",
+    utterances_text: str,
+    previous_stance: "LikertStance",
+    config: "SimulationConfig",
+    initial_error: Exception,
+) -> "LikertStance":
     system = _system_prompt.render(
         topic=config.topic,
         scale_definition=LIKERT_SCALE_DEFINITION,
@@ -91,13 +139,12 @@ async def annotate(
         except AnnotationError as exc:
             if attempt < MAX_RETRIES:
                 log.warning(
-                    "Annotation attempt %d/%d failed for %s: %s. Retrying.",
+                    "Annotation retry %d/%d failed for %s: %s. Retrying.",
                     attempt, MAX_RETRIES, agent.name, exc,
                 )
             else:
                 log.warning(
-                    "All %d annotation attempts failed for %s. "
-                    "Keeping previous stance: %s.",
-                    MAX_RETRIES, agent.name, previous_stance.label,
+                    "Batch annotation failed for %s (%s). Keeping previous stance: %s.",
+                    agent.name, initial_error, previous_stance.label,
                 )
                 return previous_stance
