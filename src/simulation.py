@@ -32,7 +32,7 @@ from pathlib import Path
 # Add src/ to path so relative imports work when run directly
 sys.path.insert(0, str(Path(__file__).parent))
 
-from annotator import annotate
+from annotator import annotate_many
 from checkpoint import (
     backup_db,
     load_checkpoint,
@@ -41,7 +41,7 @@ from checkpoint import (
     write_checkpoint,
 )
 from config import MemoryCondition, SimulationConfig, load_config
-from exchange import run_exchange
+from exchange import ExchangeTurn, run_exchange
 from memory import AgentMemory, GhostMemory, NullMemory
 from personas import create_personas
 from tracker import SimulationTracker
@@ -185,14 +185,17 @@ async def run_simulation(config: SimulationConfig) -> None:
         stance_a_before = current_stances[agent_a.agent_id]
         stance_b_before = current_stances[agent_b.agent_id]
 
-        # Run the dialogue
         exchange_log = await run_exchange(
             agent_a, agent_b, n_turns, current_stances, memory, config, sim_clock
         )
 
-        # Annotate both agents based on what they said
-        stance_a_after = await annotate(agent_a, exchange_log, stance_a_before, config)
-        stance_b_after = await annotate(agent_b, exchange_log, stance_b_before, config)
+        stance_a_after, stance_b_after = await annotate_many(
+            [
+                (agent_a, _format_agent_utterances(agent_a.agent_id, exchange_log), stance_a_before),
+                (agent_b, _format_agent_utterances(agent_b.agent_id, exchange_log), stance_b_before),
+            ],
+            config=config,
+        )
 
         # Update in-memory stances (no disk read — stances live in this dict)
         current_stances[agent_a.agent_id] = stance_a_after
@@ -220,6 +223,14 @@ async def run_simulation(config: SimulationConfig) -> None:
         write_checkpoint(iteration, config)
 
     log.info("Simulation complete. Results in: %s", config.output_dir)
+
+
+def _format_agent_utterances(agent_id: str, exchange_log: list[ExchangeTurn]) -> str:
+    utterances: list[str] = []
+    for turn_index, turn in enumerate(exchange_log, start=1):
+        if getattr(turn, "speaker_id", None) == agent_id:
+            utterances.append(f"[Turn {turn_index}] {turn.utterance}")
+    return "\n".join(utterances)
 
 
 if __name__ == "__main__":
