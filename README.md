@@ -35,6 +35,7 @@ A simulation framework that studies how **structured, decaying memory** affects 
     - [Reading the acceptance matrix](#reading-the-acceptance-matrix)
   - [Change the topic](#change-the-topic)
   - [Add a new LLM provider](#add-a-new-llm-provider)
+  - [Use vLLM](#use-vllm)
   - [Crash recovery](#crash-recovery)
   - [Reference](#reference)
 
@@ -62,7 +63,7 @@ This reproduces the core LODAS loop and adds the GhostKG memory layer on top, en
 │   ├── config.py        All data types (enums, dataclasses), config loading, validation
 │   ├── personas.py      12 hardcoded agent personas for immigration policy
 │   ├── prompts.py       All 6 prompt templates as typed, frozen dataclasses
-│   ├── llm.py           Async LLM dispatch — Ollama / Anthropic / OpenAI / Groq
+│   ├── llm.py           Async LLM dispatch — Ollama / Anthropic / OpenAI / Groq / vLLM
 │   ├── memory.py        AgentMemory interface, NullMemory, GhostMemory
 │   ├── triplets.py      LLM-based triplet extraction for the knowledge graph
 │   ├── exchange.py      Multi-turn dialogue loop (condition-blind)
@@ -306,8 +307,14 @@ All settings live in `.env`:
 
 ```bash
 # LLM provider
-LLM_PROVIDER=ollama          # ollama | anthropic | openai | groq
+LLM_PROVIDER=ollama          # ollama | anthropic | openai | groq | vllm
 LLM_MODEL=llama3.2
+LLM_BASE_URL=http://localhost:8000/v1   # used by vLLM and other OpenAI-compatible servers
+LLM_MAX_TOKENS=512
+LLM_TEMPERATURE=0.7
+LLM_TOP_P=0.95
+LLM_MAX_CONCURRENCY=8        # per-process request concurrency for batch-aware providers
+PARALLEL_EXCHANGE_JOBS=1     # >1 activates the disjoint-exchange scheduler
 
 # Simulation
 TOPIC=immigration policy
@@ -339,6 +346,7 @@ GROQ_API_KEY=...
 | **Groq** (fast API, generous free tier) | `LLM_PROVIDER=groq`, `LLM_MODEL=llama3-8b-8192`, set `GROQ_API_KEY` |
 | **Anthropic** | `LLM_PROVIDER=anthropic`, `LLM_MODEL=claude-3-haiku-20240307`, set `ANTHROPIC_API_KEY` |
 | **OpenAI** | `LLM_PROVIDER=openai`, `LLM_MODEL=gpt-4o-mini`, set `OPENAI_API_KEY` |
+| **vLLM** | `LLM_PROVIDER=vllm`, `LLM_MODEL=<served-model-name>`, set `LLM_BASE_URL` to the OpenAI-compatible endpoint |
 
 ---
 
@@ -367,6 +375,72 @@ MEMORY_CONDITION=general_only OUTPUT_DIR=data/general_only DB_PATH=data/general_
 MEMORY_CONDITION=tom_only     OUTPUT_DIR=data/tom_only     DB_PATH=data/tom_only/sim.db     python src/simulation.py
 MEMORY_CONDITION=full_kg      OUTPUT_DIR=data/full_kg      DB_PATH=data/full_kg/sim.db      python src/simulation.py
 ```
+
+### vLLM
+
+`vLLM` works in two practical modes:
+
+1. **Without explicit batching**: point the existing simulation at a `vllm` server and run normally.
+2. **With batching enabled**: use the batch-aware paths already wired into annotation and triplet extraction; vLLM batches concurrent requests on the server side.
+
+Minimal environment setup:
+
+```bash
+LLM_PROVIDER=vllm
+LLM_MODEL=meta-llama/Llama-3.1-8B-Instruct
+LLM_BASE_URL=http://127.0.0.1:8000/v1
+```
+
+#### 1. vLLM without batching
+
+This keeps the standard sequential simulation flow:
+
+```bash
+LLM_PROVIDER=vllm LLM_MODEL=meta-llama/Llama-3.1-8B-Instruct LLM_BASE_URL=http://127.0.0.1:8000/v1 \
+  python src/simulation.py
+```
+
+#### 2. vLLM with batching
+
+Batching is already active where it matters:
+
+- `annotator.py` batches the two stance judgements per exchange
+- `triplets.py` batches extraction requests per utterance/dimension set
+- `llm.py` uses bounded concurrent requests, which vLLM batches on the server
+
+Example with a higher per-process concurrency cap:
+
+```bash
+LLM_PROVIDER=vllm \
+LLM_MODEL=meta-llama/Llama-3.1-8B-Instruct \
+LLM_BASE_URL=http://127.0.0.1:8000/v1 \
+LLM_MAX_CONCURRENCY=16 \
+python src/simulation.py
+```
+
+#### 3. Parallel exchange jobs
+
+Set `PARALLEL_EXCHANGE_JOBS` above `1` to activate the disjoint-exchange scheduler:
+
+```bash
+LLM_PROVIDER=vllm \
+LLM_MODEL=meta-llama/Llama-3.1-8B-Instruct \
+LLM_BASE_URL=http://127.0.0.1:8000/v1 \
+PARALLEL_EXCHANGE_JOBS=4 \
+python src/simulation.py
+```
+
+For independent exchange workloads outside the main simulation loop, use `run_exchange_jobs()` directly:
+
+```python
+import asyncio
+from exchange import ExchangeJob, run_exchange_jobs
+
+jobs = [ExchangeJob(...), ExchangeJob(...)]
+results = asyncio.run(run_exchange_jobs(jobs))
+```
+
+This is the intended entry point for parallelizing exchange-level workloads that do not share mutable stance state.
 
 ---
 
@@ -467,10 +541,35 @@ elif config.llm_provider == "myprovider":
 
 **3. Register it in `config.py`:**
 ```python
-SUPPORTED_PROVIDERS = {"ollama", "anthropic", "openai", "groq", "myprovider"}
+SUPPORTED_PROVIDERS = {"ollama", "anthropic", "openai", "groq", "vllm", "myprovider"}
 ```
 
 No other files change.
+
+`vLLM` is already wired in as an OpenAI-compatible backend, so you only need to point `LLM_PROVIDER=vllm` at a running endpoint.
+
+---
+
+## Use vLLM
+
+`vLLM` is supported through the same entry point as the other providers. The difference is how much concurrency you allow:
+
+- `LLM_MAX_CONCURRENCY=1` keeps requests effectively serial from the client side.
+- `LLM_MAX_CONCURRENCY>1` lets the backend batch concurrent requests.
+
+Minimal examples:
+
+```bash
+# Sequential client-side behavior
+LLM_PROVIDER=vllm LLM_MODEL=meta-llama/Llama-3.1-8B-Instruct LLM_BASE_URL=http://127.0.0.1:8000/v1 \
+  LLM_MAX_CONCURRENCY=1 python src/simulation.py
+
+# Batch-friendly behavior
+LLM_PROVIDER=vllm LLM_MODEL=meta-llama/Llama-3.1-8B-Instruct LLM_BASE_URL=http://127.0.0.1:8000/v1 \
+  LLM_MAX_CONCURRENCY=16 python src/simulation.py
+```
+
+If you want to parallelize independent exchanges directly, build `ExchangeJob` objects and run them with `run_exchange_jobs()` from `src/exchange.py`.
 
 ---
 

@@ -32,7 +32,7 @@ from pathlib import Path
 # Add src/ to path so relative imports work when run directly
 sys.path.insert(0, str(Path(__file__).parent))
 
-from annotator import annotate
+from annotator import annotate_many
 from checkpoint import (
     backup_db,
     load_checkpoint,
@@ -41,7 +41,7 @@ from checkpoint import (
     write_checkpoint,
 )
 from config import MemoryCondition, SimulationConfig, load_config
-from exchange import run_exchange
+from exchange import ExchangeJob, ExchangeTurn, run_exchange, run_exchange_jobs
 from memory import AgentMemory, GhostMemory, NullMemory
 from personas import create_personas
 from tracker import SimulationTracker
@@ -147,6 +147,22 @@ async def run_simulation(config: SimulationConfig) -> None:
     epoch = datetime(2026, 1, 1, tzinfo=timezone.utc)
     clock = epoch + timedelta(hours=config.clock_advance_hours * (start_iteration - 1))
 
+    if config.parallel_exchange_jobs > 1:
+        await _run_parallel_scheduler(
+            config=config,
+            personas=personas,
+            agent_ids=agent_ids,
+            current_stances=current_stances,
+            memory=memory,
+            tracker=tracker,
+            manager=manager,
+            rng=rng,
+            start_iteration=start_iteration,
+            clock=clock,
+        )
+        log.info("Simulation complete. Results in: %s", config.output_dir)
+        return
+
     # ── Main loop ──────────────────────────────────────────────────────────────
     for iteration in range(start_iteration, config.n_iterations + 1):
 
@@ -185,14 +201,17 @@ async def run_simulation(config: SimulationConfig) -> None:
         stance_a_before = current_stances[agent_a.agent_id]
         stance_b_before = current_stances[agent_b.agent_id]
 
-        # Run the dialogue
         exchange_log = await run_exchange(
             agent_a, agent_b, n_turns, current_stances, memory, config, sim_clock
         )
 
-        # Annotate both agents based on what they said
-        stance_a_after = await annotate(agent_a, exchange_log, stance_a_before, config)
-        stance_b_after = await annotate(agent_b, exchange_log, stance_b_before, config)
+        stance_a_after, stance_b_after = await annotate_many(
+            [
+                (agent_a, _format_agent_utterances(agent_a.agent_id, exchange_log), stance_a_before),
+                (agent_b, _format_agent_utterances(agent_b.agent_id, exchange_log), stance_b_before),
+            ],
+            config=config,
+        )
 
         # Update in-memory stances (no disk read — stances live in this dict)
         current_stances[agent_a.agent_id] = stance_a_after
@@ -220,6 +239,146 @@ async def run_simulation(config: SimulationConfig) -> None:
         write_checkpoint(iteration, config)
 
     log.info("Simulation complete. Results in: %s", config.output_dir)
+
+
+async def _run_parallel_scheduler(
+    config: SimulationConfig,
+    personas: list[object],
+    agent_ids: list[str],
+    current_stances: dict[str, object],
+    memory: AgentMemory,
+    tracker: SimulationTracker,
+    manager: object,
+    rng: random.Random,
+    start_iteration: int,
+    clock: datetime,
+) -> None:
+    """
+    Execute exchanges in parallel batches of disjoint pairs.
+
+    The scheduler keeps the same checkpointing contract as the sequential loop
+    by checkpointing after each completed exchange, even though LLM generation
+    happens concurrently at batch scope.
+    """
+    exchange_index = start_iteration
+    while exchange_index <= config.n_iterations:
+        backup_db(exchange_index - 1, config)
+        clock += timedelta(hours=config.clock_advance_hours)
+        sim_clock = clock.isoformat()
+
+        if manager is not None:
+            for agent_id in agent_ids:
+                try:
+                    manager.set_agent_time(agent_id, clock)
+                except Exception:
+                    pass
+
+        jobs = _build_exchange_batch(
+            personas=personas,
+            current_stances=current_stances,
+            memory=memory,
+            config=config,
+            sim_clock=sim_clock,
+            rng=rng,
+            max_jobs=config.parallel_exchange_jobs,
+            remaining=config.n_iterations - exchange_index + 1,
+        )
+
+        if not jobs:
+            break
+
+        batch_logs = await run_exchange_jobs(jobs)
+
+        annotation_requests: list[tuple[object, str, object]] = []
+        before_pairs: list[tuple[object, object]] = []
+        for job, exchange_log in zip(jobs, batch_logs):
+            agent_a_before = current_stances[job.agent_a.agent_id]
+            agent_b_before = current_stances[job.agent_b.agent_id]
+            before_pairs.append((agent_a_before, agent_b_before))
+            annotation_requests.append(
+                (job.agent_a, _format_agent_utterances(job.agent_a.agent_id, exchange_log), agent_a_before)
+            )
+            annotation_requests.append(
+                (job.agent_b, _format_agent_utterances(job.agent_b.agent_id, exchange_log), agent_b_before)
+            )
+
+        annotated = await annotate_many(annotation_requests, config=config)
+
+        for index, (job, exchange_log) in enumerate(zip(jobs, batch_logs)):
+            stance_a_before, stance_b_before = before_pairs[index]
+            stance_a_after = annotated[index * 2]
+            stance_b_after = annotated[index * 2 + 1]
+
+            current_stances[job.agent_a.agent_id] = stance_a_after
+            current_stances[job.agent_b.agent_id] = stance_b_after
+
+            log.info(
+                "Iter %3d/%d | %s (%s) ↔ %s (%s) | %d turns | clock %s",
+                exchange_index, config.n_iterations,
+                job.agent_a.name, stance_a_before.label,
+                job.agent_b.name, stance_b_before.label,
+                job.n_turns,
+                clock.strftime("%Y-%m-%d"),
+            )
+            log.info(
+                "         → %s: %s→%s | %s: %s→%s",
+                job.agent_a.name, stance_a_before.label, stance_a_after.label,
+                job.agent_b.name, stance_b_before.label, stance_b_after.label,
+            )
+
+            tracker.log(
+                iteration=exchange_index,
+                agent_a=job.agent_a,
+                agent_b=job.agent_b,
+                stance_a_before=stance_a_before,
+                stance_a_after=stance_a_after,
+                stance_b_before=stance_b_before,
+                stance_b_after=stance_b_after,
+                exchange_log=exchange_log,
+                sim_clock=sim_clock,
+            )
+            write_checkpoint(exchange_index, config)
+            exchange_index += 1
+
+
+def _build_exchange_batch(
+    personas: list[object],
+    current_stances: dict[str, object],
+    memory: AgentMemory,
+    config: SimulationConfig,
+    sim_clock: str,
+    rng: random.Random,
+    max_jobs: int,
+    remaining: int,
+) -> list[ExchangeJob]:
+    shuffled = personas[:]
+    rng.shuffle(shuffled)
+    batch_size = min(max_jobs, remaining, len(shuffled) // 2)
+    jobs: list[ExchangeJob] = []
+    for index in range(batch_size):
+        agent_a = shuffled[index * 2]
+        agent_b = shuffled[index * 2 + 1]
+        n_turns = rng.randint(config.min_turns, config.max_turns)
+        jobs.append(
+            ExchangeJob(
+                agent_a=agent_a,
+                agent_b=agent_b,
+                n_turns=n_turns,
+                current_stances=current_stances,
+                memory=memory,
+                config=config,
+                sim_clock=sim_clock,
+            )
+        )
+    return jobs
+
+
+def _format_agent_utterances(agent_id: str, exchange_log: list[ExchangeTurn]) -> str:
+    utterances: list[str] = []
+    for turn_index, turn in enumerate(exchange_log, start=1):
+        if getattr(turn, "speaker_id", None) == agent_id:
+            utterances.append(f"[Turn {turn_index}] {turn.utterance}")
+    return "\n".join(utterances)
 
 
 if __name__ == "__main__":

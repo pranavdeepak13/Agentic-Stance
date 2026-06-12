@@ -22,7 +22,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from config import SimulationConfig
 
-from llm import llm_call
+from llm import LLMRequest, llm_call_many
 from prompts import TripletSystemPrompt, TripletUserPrompt
 
 log = logging.getLogger(__name__)
@@ -49,16 +49,39 @@ async def extract_triplets(
 
     Returns an empty list on any parsing failure (never raises).
     """
-    system = _system_prompt.render(dimension=dimension)
-    user   = _user_prompt.render(text=text)
+    results = await extract_triplets_batch([(text, dimension)], config)
+    return results[0]
 
-    try:
-        raw = await llm_call(system, user, config)
-    except Exception as exc:
-        log.warning("Triplet extraction LLM call failed: %s. Skipping.", exc)
+
+async def extract_triplets_batch(
+    requests: list[tuple[str, str]],
+    config: "SimulationConfig",
+) -> list[list[Triplet]]:
+    """
+    Extract KG triplets for many (text, dimension) pairs in one batch.
+
+    Returns a list aligned with the input request order. Failures degrade to
+    empty lists per request.
+    """
+    if not requests:
         return []
 
-    return _parse_triplets(raw, dimension)
+    llm_requests: list[LLMRequest] = []
+    for text, dimension in requests:
+        system = _system_prompt.render(dimension=dimension)
+        user = _user_prompt.render(text=text)
+        llm_requests.append(LLMRequest(system=system, user=user))
+
+    try:
+        raw_outputs = await llm_call_many(llm_requests, config)
+    except Exception as exc:
+        log.warning("Triplet extraction batch failed: %s. Skipping batch.", exc)
+        return [[] for _ in requests]
+
+    parsed: list[list[Triplet]] = []
+    for raw, (_, dimension) in zip(raw_outputs, requests):
+        parsed.append(_parse_triplets(raw, dimension))
+    return parsed
 
 
 def _parse_triplets(raw: str, dimension: str) -> list[Triplet]:

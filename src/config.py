@@ -12,7 +12,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-SUPPORTED_PROVIDERS = {"ollama", "anthropic", "openai", "groq"}
+SUPPORTED_PROVIDERS = {"ollama", "anthropic", "openai", "groq", "vllm"}
 
 
 # ── Enums ─────────────────────────────────────────────────────────────────────
@@ -81,6 +81,12 @@ class SimulationConfig:
     clock_advance_hours: int                = 24   
     llm_provider: str                       = "ollama"
     llm_model: str                          = "llama3.2"
+    llm_base_url: str                       = "http://localhost:8000/v1"
+    llm_max_tokens: int                     = 512
+    llm_temperature: float                  = 0.7
+    llm_top_p: float                        = 0.95
+    llm_max_concurrency: int                = 8
+    parallel_exchange_jobs: int             = 1
     output_dir: str                         = "data/run_01"
     db_path: str                            = "data/run_01/simulation.db"
 
@@ -104,6 +110,12 @@ def load_config() -> SimulationConfig:
         clock_advance_hours  = int(os.getenv("CLOCK_ADVANCE_HOURS", "24")),
         llm_provider         = os.getenv("LLM_PROVIDER", "ollama"),
         llm_model            = os.getenv("LLM_MODEL", "llama3.2"),
+        llm_base_url         = os.getenv("LLM_BASE_URL", "http://localhost:8000/v1"),
+        llm_max_tokens       = int(os.getenv("LLM_MAX_TOKENS", "512")),
+        llm_temperature      = float(os.getenv("LLM_TEMPERATURE", "0.7")),
+        llm_top_p            = float(os.getenv("LLM_TOP_P", "0.95")),
+        llm_max_concurrency  = int(os.getenv("LLM_MAX_CONCURRENCY", "8")),
+        parallel_exchange_jobs = int(os.getenv("PARALLEL_EXCHANGE_JOBS", "1")),
         output_dir           = os.getenv("OUTPUT_DIR", "data/run_01"),
         db_path              = os.getenv("DB_PATH", "data/run_01/simulation.db"),
     )
@@ -131,6 +143,25 @@ def _validate_config(config: SimulationConfig) -> None:
     if config.clock_advance_hours <= 0:
         errors.append(
             f"clock_advance_hours must be > 0, got {config.clock_advance_hours}"
+        )
+
+    if config.llm_max_tokens <= 0:
+        errors.append(f"llm_max_tokens must be > 0, got {config.llm_max_tokens}")
+
+    if not 0.0 < config.llm_temperature <= 2.0:
+        errors.append(f"llm_temperature must be in (0, 2], got {config.llm_temperature}")
+
+    if not 0.0 < config.llm_top_p <= 1.0:
+        errors.append(f"llm_top_p must be in (0, 1], got {config.llm_top_p}")
+
+    if config.llm_max_concurrency <= 0:
+        errors.append(
+            f"llm_max_concurrency must be > 0, got {config.llm_max_concurrency}"
+        )
+
+    if config.parallel_exchange_jobs <= 0:
+        errors.append(
+            f"parallel_exchange_jobs must be > 0, got {config.parallel_exchange_jobs}"
         )
 
     if config.llm_provider not in SUPPORTED_PROVIDERS:
@@ -161,6 +192,8 @@ def _validate_config(config: SimulationConfig) -> None:
     # Ollama connectivity check is last — it requires a network call
     if config.llm_provider == "ollama":
         _check_ollama(config)
+    elif config.llm_provider == "vllm":
+        _check_vllm_config(config)
 
 
 def _check_ollama(config: SimulationConfig) -> None:
@@ -183,6 +216,12 @@ def _check_ollama(config: SimulationConfig) -> None:
         raise LLMError(
             f"Cannot connect to Ollama. Make sure it is running. Error: {exc}"
         ) from exc
+
+
+def _check_vllm_config(config: SimulationConfig) -> None:
+    """Basic validation for a vLLM OpenAI-compatible endpoint."""
+    if not config.llm_base_url.startswith(("http://", "https://")):
+        raise LLMError(f"LLM_BASE_URL must be an http(s) URL, got {config.llm_base_url!r}")
 
 
 def _smoke_test_prompts() -> None:

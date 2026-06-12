@@ -1,20 +1,15 @@
 """
-llm.py — Single async function for all LLM provider calls.
+llm.py — Unified async access to LLM providers, with batch-aware helpers.
 
-All providers return a plain string. All failures raise LLMError.
-No retry logic here — callers decide whether to retry and how many times.
-
-Supported providers:
-ollama     — local Ollama (primary; free, reproducible, no rate limits)
-anthropic  — Claude models via Anthropic API
-openai     — GPT models via OpenAI API
-groq       — Llama models via Groq API (fast, generous free tier)
-gemini     — Gemini models via Google Generative AI API
-Add a new provider by adding one branch to llm_call() only.
+Single-request callers still use `llm_call()`. Batch-capable call sites should
+use `llm_call_many()` so providers like vLLM can benefit from concurrent
+requests that the backend batches internally.
 """
 
 from __future__ import annotations
 
+import asyncio
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -23,36 +18,58 @@ if TYPE_CHECKING:
 from config import LLMError
 
 
+@dataclass(frozen=True)
+class LLMRequest:
+    system: str
+    user: str
+
+
 async def llm_call(system: str, user: str, config: "SimulationConfig") -> str:
-    """
-    Call the configured LLM provider with a system prompt and a user message.
-    Returns the model's text response as a plain string.
-    Raises LLMError on any failure.
-    """
+    responses = await llm_call_many([LLMRequest(system=system, user=user)], config)
+    return responses[0]
+
+
+async def llm_call_many(
+    requests: list[LLMRequest],
+    config: "SimulationConfig",
+) -> list[str]:
+    if not requests:
+        return []
+
     provider = config.llm_provider
-    model = config.llm_model
-
     if provider == "ollama":
-        return await _call_ollama(system, user, model)
-    elif provider == "anthropic":
-        return await _call_anthropic(system, user, model)
-    elif provider == "openai":
-        return await _call_openai(system, user, model)
-    elif provider == "groq":
-        return await _call_groq(system, user, model)
-    else:
-        raise LLMError(f"Unknown provider: {provider!r}")
+        return await _call_many_ollama(requests, config)
+    if provider == "anthropic":
+        return await _call_many_anthropic(requests, config)
+    if provider == "openai":
+        return await _call_many_openai(requests, config)
+    if provider == "groq":
+        return await _call_many_groq(requests, config)
+    if provider == "vllm":
+        return await _call_many_vllm(requests, config)
+    raise LLMError(f"Unknown provider: {provider!r}")
 
 
-async def _call_ollama(system: str, user: str, model: str) -> str:
+async def _bounded_gather(requests: list[LLMRequest], config: "SimulationConfig", call_fn) -> list[str]:
+    semaphore = asyncio.Semaphore(config.llm_max_concurrency)
+
+    async def _run(request: LLMRequest) -> str:
+        async with semaphore:
+            return await call_fn(request, config)
+
+    results = await asyncio.gather(*[_run(request) for request in requests])
+    return list(results)
+
+
+async def _call_one_ollama(request: LLMRequest, config: "SimulationConfig") -> str:
     try:
         import ollama
         client = ollama.AsyncClient()
         response = await client.chat(
-            model=model,
+            model=config.llm_model,
             messages=[
-                {"role": "system",    "content": system},
-                {"role": "user",      "content": user},
+                {"role": "system", "content": request.system},
+                {"role": "user", "content": request.user},
             ],
         )
         return response.message.content.strip()
@@ -62,16 +79,16 @@ async def _call_ollama(system: str, user: str, model: str) -> str:
         raise LLMError(f"Ollama call failed: {exc}") from exc
 
 
-async def _call_anthropic(system: str, user: str, model: str) -> str:
+async def _call_one_anthropic(request: LLMRequest, config: "SimulationConfig") -> str:
     try:
         import anthropic
         import os
         client = anthropic.AsyncAnthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
         message = await client.messages.create(
-            model=model,
-            max_tokens=512,
-            system=system,
-            messages=[{"role": "user", "content": user}],
+            model=config.llm_model,
+            max_tokens=config.llm_max_tokens,
+            system=request.system,
+            messages=[{"role": "user", "content": request.user}],
         )
         return message.content[0].text.strip()
     except ImportError:
@@ -82,18 +99,20 @@ async def _call_anthropic(system: str, user: str, model: str) -> str:
         raise LLMError(f"Anthropic call failed: {exc}") from exc
 
 
-async def _call_openai(system: str, user: str, model: str) -> str:
+async def _call_one_openai(request: LLMRequest, config: "SimulationConfig") -> str:
     try:
         import openai
         import os
         client = openai.AsyncOpenAI(api_key=os.environ["OPENAI_API_KEY"])
         response = await client.chat.completions.create(
-            model=model,
+            model=config.llm_model,
             messages=[
-                {"role": "system", "content": system},
-                {"role": "user",   "content": user},
+                {"role": "system", "content": request.system},
+                {"role": "user", "content": request.user},
             ],
-            max_tokens=512,
+            max_tokens=config.llm_max_tokens,
+            temperature=config.llm_temperature,
+            top_p=config.llm_top_p,
         )
         return response.choices[0].message.content.strip()
     except ImportError:
@@ -104,18 +123,20 @@ async def _call_openai(system: str, user: str, model: str) -> str:
         raise LLMError(f"OpenAI call failed: {exc}") from exc
 
 
-async def _call_groq(system: str, user: str, model: str) -> str:
+async def _call_one_groq(request: LLMRequest, config: "SimulationConfig") -> str:
     try:
         import groq
         import os
         client = groq.AsyncGroq(api_key=os.environ["GROQ_API_KEY"])
         response = await client.chat.completions.create(
-            model=model,
+            model=config.llm_model,
             messages=[
-                {"role": "system", "content": system},
-                {"role": "user",   "content": user},
+                {"role": "system", "content": request.system},
+                {"role": "user", "content": request.user},
             ],
-            max_tokens=512,
+            max_tokens=config.llm_max_tokens,
+            temperature=config.llm_temperature,
+            top_p=config.llm_top_p,
         )
         return response.choices[0].message.content.strip()
     except ImportError:
@@ -125,23 +146,49 @@ async def _call_groq(system: str, user: str, model: str) -> str:
     except Exception as exc:
         raise LLMError(f"Groq call failed: {exc}") from exc
 
-async def _call_gemini(system: str, user: str, model: str) -> str:
+
+async def _call_one_vllm(request: LLMRequest, config: "SimulationConfig") -> str:
     try:
-        from google import genai
-        import os
-        client = genai.GenerativeAI(api_key=os.environ["GOOGLE_API_KEY"])
+        import openai
+        client = openai.AsyncOpenAI(
+            api_key="EMPTY",
+            base_url=config.llm_base_url,
+        )
         response = await client.chat.completions.create(
-            model=model,
+            model=config.llm_model,
             messages=[
-                {"role": "system", "content": system},
-                {"role": "user",   "content": user},
+                {"role": "system", "content": request.system},
+                {"role": "user", "content": request.user},
             ],
-            max_tokens=512,
+            max_tokens=config.llm_max_tokens,
+            temperature=config.llm_temperature,
+            top_p=config.llm_top_p,
         )
         return response.choices[0].message.content.strip()
     except ImportError:
-        raise LLMError("google-genai package not installed. Run: pip install google-genai")
-    except KeyError:
-        raise LLMError("GOOGLE_API_KEY not set in environment")
+        raise LLMError("openai package not installed. Run: pip install openai")
     except Exception as exc:
-        raise LLMError(f"Gemini call failed: {exc}") from exc
+        raise LLMError(f"vLLM call failed: {exc}") from exc
+
+
+async def _call_many_ollama(requests: list[LLMRequest], config: "SimulationConfig") -> list[str]:
+    return await _bounded_gather(requests, config, _call_one_ollama)
+
+
+async def _call_many_anthropic(requests: list[LLMRequest], config: "SimulationConfig") -> list[str]:
+    return await _bounded_gather(requests, config, _call_one_anthropic)
+
+
+async def _call_many_openai(requests: list[LLMRequest], config: "SimulationConfig") -> list[str]:
+    return await _bounded_gather(requests, config, _call_one_openai)
+
+
+async def _call_many_groq(requests: list[LLMRequest], config: "SimulationConfig") -> list[str]:
+    return await _bounded_gather(requests, config, _call_one_groq)
+
+
+async def _call_many_vllm(requests: list[LLMRequest], config: "SimulationConfig") -> list[str]:
+    # vLLM continuously batches concurrent requests on the server side, so a
+    # bounded gather is enough to realize the throughput gains without changing
+    # the application-level contract.
+    return await _bounded_gather(requests, config, _call_one_vllm)
