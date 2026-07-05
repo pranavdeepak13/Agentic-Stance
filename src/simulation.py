@@ -163,11 +163,11 @@ async def run_simulation(config: SimulationConfig) -> None:
         log.info("Simulation complete. Results in: %s", config.output_dir)
         return
 
-    # ── Main loop ──────────────────────────────────────────────────────────────
-    for iteration in range(start_iteration, config.n_iterations + 1):
+    # ── Main loop (day-based: every agent is active at least once per day) ──────
+    for day in range(start_iteration, config.n_iterations + 1):
 
-        # Snapshot the DB before touching anything this iteration (crash safety)
-        backup_db(iteration - 1, config)
+        # Snapshot the DB before touching anything this day (crash safety)
+        backup_db(day - 1, config)
 
         # Advance FSRS clock
         clock += timedelta(hours=config.clock_advance_hours)
@@ -181,62 +181,66 @@ async def run_simulation(config: SimulationConfig) -> None:
                 except Exception:
                     pass  # GhostKG API may differ by version; log and continue
 
-        # Select a random pair (without replacement within each pair)
-        pair = rng.sample(personas, 2)
-        agent_a, agent_b = pair[0], pair[1]
-
-        # Random number of turns for this exchange
-        n_turns = rng.randint(config.min_turns, config.max_turns)
-
         log.info(
-            "Iter %3d/%d | %s (%s) ↔ %s (%s) | %d turns | clock %s",
-            iteration, config.n_iterations,
-            agent_a.name, current_stances[agent_a.agent_id].label,
-            agent_b.name, current_stances[agent_b.agent_id].label,
-            n_turns,
+            "Day %3d/%d | clock %s",
+            day, config.n_iterations,
             clock.strftime("%Y-%m-%d"),
         )
 
-        # Capture stances before the exchange (needed for tracker._before fields)
-        stance_a_before = current_stances[agent_a.agent_id]
-        stance_b_before = current_stances[agent_b.agent_id]
+        # Each agent initiates exactly one exchange per day (shuffled order)
+        day_order = list(personas)
+        rng.shuffle(day_order)
 
-        exchange_log = await run_exchange(
-            agent_a, agent_b, n_turns, current_stances, memory, config, sim_clock
-        )
+        for initiator in day_order:
+            possible_partners = [p for p in personas if p.agent_id != initiator.agent_id]
+            partner = rng.choice(possible_partners)
+            n_turns = rng.randint(config.min_turns, config.max_turns)
 
-        stance_a_after, stance_b_after = await annotate_many(
-            [
-                (agent_a, _format_agent_utterances(agent_a.agent_id, exchange_log), stance_a_before),
-                (agent_b, _format_agent_utterances(agent_b.agent_id, exchange_log), stance_b_before),
-            ],
-            config=config,
-        )
+            log.info(
+                "  %s (%s) ↔ %s (%s) | %d turns",
+                initiator.name, current_stances[initiator.agent_id].label,
+                partner.name, current_stances[partner.agent_id].label,
+                n_turns,
+            )
 
-        # Update in-memory stances (no disk read — stances live in this dict)
-        current_stances[agent_a.agent_id] = stance_a_after
-        current_stances[agent_b.agent_id] = stance_b_after
+            stance_initiator_before = current_stances[initiator.agent_id]
+            stance_partner_before   = current_stances[partner.agent_id]
 
-        log.info(
-            "         → %s: %s→%s | %s: %s→%s",
-            agent_a.name, stance_a_before.label, stance_a_after.label,
-            agent_b.name, stance_b_before.label, stance_b_after.label,
-        )
+            exchange_log = await run_exchange(
+                initiator, partner, n_turns, current_stances, memory, config, sim_clock, day=day
+            )
 
-        # Log to CSV and JSONL — checkpoint is written AFTER this succeeds
-        tracker.log(
-            iteration=iteration,
-            agent_a=agent_a,
-            agent_b=agent_b,
-            stance_a_before=stance_a_before,
-            stance_a_after=stance_a_after,
-            stance_b_before=stance_b_before,
-            stance_b_after=stance_b_after,
-            exchange_log=exchange_log,
-            sim_clock=sim_clock,
-        )
+            stance_initiator_after, stance_partner_after = await annotate_many(
+                [
+                    (initiator, _format_agent_utterances(initiator.agent_id, exchange_log), stance_initiator_before),
+                    (partner,   _format_agent_utterances(partner.agent_id, exchange_log),   stance_partner_before),
+                ],
+                config=config,
+            )
 
-        write_checkpoint(iteration, config)
+            current_stances[initiator.agent_id] = stance_initiator_after
+            current_stances[partner.agent_id]   = stance_partner_after
+
+            log.info(
+                "         → %s: %s→%s | %s: %s→%s",
+                initiator.name, stance_initiator_before.label, stance_initiator_after.label,
+                partner.name, stance_partner_before.label, stance_partner_after.label,
+            )
+
+            tracker.log(
+                iteration=day,
+                agent_a=initiator,
+                agent_b=partner,
+                stance_a_before=stance_initiator_before,
+                stance_a_after=stance_initiator_after,
+                stance_b_before=stance_partner_before,
+                stance_b_after=stance_partner_after,
+                exchange_log=exchange_log,
+                sim_clock=sim_clock,
+            )
+
+        # Checkpoint once per day, after all agents have exchanged
+        write_checkpoint(day, config)
 
     log.info("Simulation complete. Results in: %s", config.output_dir)
 

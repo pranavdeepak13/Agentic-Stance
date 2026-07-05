@@ -33,7 +33,7 @@ log = logging.getLogger(__name__)
 
 class AgentMemory(ABC):
     @abstractmethod
-    async def absorb(self, agent_id: str, text: str, author: str) -> None:
+    async def absorb(self, agent_id: str, text: str, author: str, round: int = 0) -> None:
         """Store `text` (spoken by `author`) in `agent_id`'s memory."""
 
     @abstractmethod
@@ -44,7 +44,7 @@ class AgentMemory(ABC):
 class NullMemory(AgentMemory):
     """No-op memory for the no_kg baseline condition."""
 
-    async def absorb(self, agent_id: str, text: str, author: str) -> None:
+    async def absorb(self, agent_id: str, text: str, author: str, round: int = 0) -> None:
         pass
 
     def get_context(self, agent_id: str, topic: str) -> str:
@@ -70,7 +70,7 @@ class GhostMemory(AgentMemory):
         self._config  = config
         self._dimensions = dimensions
 
-    async def absorb(self, agent_id: str, text: str, author: str) -> None:
+    async def absorb(self, agent_id: str, text: str, author: str, round: int = 0) -> None:
         """
         Extract triplets from `text` for each active dimension, then write
         them to the agent's KG via GhostKG.
@@ -78,6 +78,7 @@ class GhostMemory(AgentMemory):
         triplet_batches = await extract_triplets_batch(
             [(text, dim) for dim in self._dimensions],
             self._config,
+            round=round,
         )
 
         for dim, triplets in zip(self._dimensions, triplet_batches):

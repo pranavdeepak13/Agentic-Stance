@@ -41,6 +41,15 @@ class LikertStance(Enum):
     def __str__(self) -> str:
         return self.label
 
+    @classmethod
+    def from_score(cls, score: int) -> "LikertStance":
+        """Reverse lookup: return the LikertStance member with the given integer score."""
+        for member in cls:
+            if member.score == score:
+                return member
+        valid = [m.score for m in cls]
+        raise ValueError(f"No LikertStance with score {score!r}. Valid scores: {valid}")
+
 
 class PoliticalLeaning(str, Enum):
     FAR_LEFT  = "far_left"

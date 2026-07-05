@@ -24,7 +24,7 @@ if TYPE_CHECKING:
     from exchange import ExchangeTurn
     from personas import AgentPersona
 
-from config import AnnotationError, parse_likert
+from config import AnnotationError, LikertStance, parse_likert
 from llm import LLMRequest, llm_call, llm_call_many
 from prompts import (
     LIKERT_SCALE_DEFINITION,
@@ -107,7 +107,9 @@ async def annotate_many(
     annotated: list["LikertStance"] = []
     for (agent, _utterances_text, previous_stance), raw in zip(items, outputs):
         try:
-            annotated.append(parse_likert(raw))
+            new_stance = parse_likert(raw)
+            clamped_score = max(previous_stance.score - 1, min(previous_stance.score + 1, new_stance.score))
+            annotated.append(LikertStance.from_score(clamped_score))
         except AnnotationError as exc:
             annotated.append(
                 await _retry_annotation(agent, _utterances_text, previous_stance, config, exc)
@@ -135,7 +137,9 @@ async def _retry_annotation(
     for attempt in range(1, MAX_RETRIES + 1):
         try:
             raw = await llm_call(system, user, config)
-            return parse_likert(raw)
+            new_stance = parse_likert(raw)
+            clamped_score = max(previous_stance.score - 1, min(previous_stance.score + 1, new_stance.score))
+            return LikertStance.from_score(clamped_score)
         except AnnotationError as exc:
             if attempt < MAX_RETRIES:
                 log.warning(

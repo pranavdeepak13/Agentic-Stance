@@ -36,26 +36,29 @@ class Triplet:
     subject:   str
     predicate: str
     object:    str
-    dimension: str  
+    dimension: str
+    round:     int = 0
 
 
 async def extract_triplets(
     text: str,
     dimension: str,
     config: "SimulationConfig",
+    round: int = 0,
 ) -> list[Triplet]:
     """
     Extract KG triplets from `text` for the given KG `dimension`.
 
     Returns an empty list on any parsing failure (never raises).
     """
-    results = await extract_triplets_batch([(text, dimension)], config)
+    results = await extract_triplets_batch([(text, dimension)], config, round=round)
     return results[0]
 
 
 async def extract_triplets_batch(
     requests: list[tuple[str, str]],
     config: "SimulationConfig",
+    round: int = 0,
 ) -> list[list[Triplet]]:
     """
     Extract KG triplets for many (text, dimension) pairs in one batch.
@@ -80,11 +83,11 @@ async def extract_triplets_batch(
 
     parsed: list[list[Triplet]] = []
     for raw, (_, dimension) in zip(raw_outputs, requests):
-        parsed.append(_parse_triplets(raw, dimension))
+        parsed.append(_parse_triplets(raw, dimension, round=round))
     return parsed
 
 
-def _parse_triplets(raw: str, dimension: str) -> list[Triplet]:
+def _parse_triplets(raw: str, dimension: str, round: int = 0) -> list[Triplet]:
     """
     Parse pipe-separated triplet lines from LLM output.
 
@@ -108,6 +111,6 @@ def _parse_triplets(raw: str, dimension: str) -> list[Triplet]:
             continue
         subject, predicate, obj = parts
         if subject and predicate and obj:
-            triplets.append(Triplet(subject, predicate, obj, dimension))
+            triplets.append(Triplet(subject, predicate, obj, dimension, round))
 
     return triplets

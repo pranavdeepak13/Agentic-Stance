@@ -63,6 +63,7 @@ async def run_exchange(
     memory: "AgentMemory",
     config: "SimulationConfig",
     sim_clock: str,
+    day: int = 0,
 ) -> list[ExchangeTurn]:
     """
     Run a multi-turn dialogue between agent_a and agent_b.
@@ -112,7 +113,7 @@ async def run_exchange(
         )
         exchange_log.append(turn)
 
-        await memory.absorb(listener.agent_id, utterance, author=speaker.agent_id)
+        await memory.absorb(listener.agent_id, utterance, author=speaker.agent_id, round=day)
 
         log.debug(
             "[iter] turn %d | %s → %s | %d chars",
