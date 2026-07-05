@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GhostKG Opinion Dynamics</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: system-ui, -apple-system, sans-serif; max-width: 820px; margin: 0 auto; padding: 2rem 1.5rem 4rem; line-height: 1.65; color: #111; background: #fff; }
+  nav { border-bottom: 1px solid #e0e0e0; padding-bottom: 1rem; margin-bottom: 2.5rem; font-size: .84rem; }
+  nav a { margin-right: 1.2rem; color: #0055cc; text-decoration: none; }
+  nav a:hover { text-decoration: underline; }
+  h1 { font-size: 1.45rem; font-weight: 700; margin-bottom: .4rem; }
+  .subtitle { color: #555; font-size: .95rem; margin-bottom: .6rem; }
+  .meta { font-size: .82rem; color: #777; margin-bottom: 1.5rem; }
+  h2 { font-size: .88rem; font-weight: 700; margin-top: 2.8rem; margin-bottom: 1rem; text-transform: uppercase; letter-spacing: .09em; color: #333; border-bottom: 1px solid #e0e0e0; padding-bottom: .4rem; }
+  h3 { font-size: .95rem; font-weight: 600; margin-top: 1.6rem; margin-bottom: .6rem; }
+  p { margin-bottom: .9rem; }
+  pre { background: #f5f5f5; border-left: 3px solid #222; padding: .85rem 1rem; overflow-x: auto; font-size: .81rem; margin: .8rem 0 1.2rem; border-radius: 0 2px 2px 0; }
+  code { font-family: 'Menlo', 'Consolas', 'Monaco', monospace; font-size: .82em; background: #efefef; padding: .1em .35em; border-radius: 2px; }
+  pre code { background: none; padding: 0; font-size: 1em; }
+  table { width: 100%; border-collapse: collapse; font-size: .875rem; margin: .8rem 0 1.4rem; }
+  th { text-align: left; border-bottom: 2px solid #111; padding: .4rem .5rem; font-size: .76rem; text-transform: uppercase; letter-spacing: .07em; }
+  td { padding: .38rem .5rem; border-bottom: 1px solid #eaeaea; vertical-align: top; }
+  td:first-child { white-space: nowrap; font-family: 'Menlo', monospace; font-size: .8rem; color: #333; }
+  .tag { display: inline-block; background: #111; color: #fff; font-size: .67rem; padding: .15em .45em; font-weight: 700; letter-spacing: .04em; vertical-align: middle; border-radius: 2px; }
+  .note { background: #fffbe6; border-left: 3px solid #e6b800; padding: .7rem 1rem; margin: 1rem 0; font-size: .88rem; }
+  .diagram { background: #f5f5f5; border: 1px solid #ddd; padding: 1rem 1.2rem; font-family: monospace; font-size: .8rem; line-height: 1.5; overflow-x: auto; margin: 1rem 0; }
+  hr { border: none; border-top: 1px solid #e8e8e8; margin: 2.5rem 0; }
+  ul { margin: .5rem 0 .9rem 1.4rem; }
+  li { margin-bottom: .35rem; }
+  .results-table td { font-size: .84rem; }
+  .condition-name { font-weight: 600; font-family: monospace; font-size: .85rem; }
+</style>
+</head>
+<body>
+
+<nav>
+  <a href="#overview">Overview</a>
+  <a href="#architecture">Architecture</a>
+  <a href="#mechanics">Mechanics</a>
+  <a href="#conditions">Conditions</a>
+  <a href="#config">Config</a>
+  <a href="#running">Running</a>
+  <a href="#topics">Topics</a>
+  <a href="#agents">Agentic Team</a>
+  <a href="#results">Results</a>
+</nav>
+
+<h1>GhostKG Opinion Dynamics</h1>
+<p class="subtitle">Extending LLM opinion dynamics with structured decaying KG memory to measure sycophancy reduction</p>
+<p class="meta">
+  Collaboration: Pranav Deepak &amp; Dr. Giulio Rossetti (CNR Italy / KDD Lab Pisa) &nbsp;·&nbsp;
+  Extends: <em>Cau et al. 2025, EPJ Data Science</em> (LODAS framework)
+</p>
+
+<hr>
+
+<section id="overview">
+<h2>Overview</h2>
+
+<p>
+  LLM agents in opinion dynamics simulations are sycophantic — they shift their stated opinion toward whoever they just spoke with, regardless of prior beliefs. This project tests whether structured knowledge graph memory (GhostKG + FSRS spaced repetition) changes that behavior.
+</p>
+
+<p>
+  The core claim: <em>"Consistency-awareness mechanisms via KGs reduce intrinsic agreeableness and introduce more realistic friction into individual agent dynamics."</em>
+</p>
+
+<p>The system runs four ablation conditions across the same agents and topic. No-memory baseline (LODAS replication) vs. three KG configurations that give agents progressively more structured memory of past exchanges.</p>
+
+<div class="note">
+  This is not a replication of the EPJ paper — model, topic, and population differ. Results compare conditions against the project's own <code>no_kg</code> baseline, not EPJ figures.
+</div>
+</section>
+
+<section id="architecture">
+<h2>Architecture</h2>
+
+<div class="diagram">
+topics/{slug}.py ──► personas.py ──► AgentPersona[]
+                                         │
+                         ┌───────────────┼───────────────┐
+                         ▼               ▼               ▼
+                    NullMemory      GhostMemory     GhostMemory
+                    (no_kg)         (general_only   (full_kg: all
+                                     tom_only)       3 dims)
+                         │               │
+                         └───────────────┘
+                                 │
+                         simulation.py  ◄── config.py (.env)
+                                 │
+                    ┌────────────┼────────────┐
+                    ▼            ▼            ▼
+               exchange.py   annotator.py  tracker.py
+                    │            │            │
+               llm.py        llm.py       results.csv
+               memory.absorb              jsonl log
+               triplets.py
+                    │
+                GhostKG DB
+                (FSRS decay)
+</div>
+
+<h3>Module Map</h3>
+
+<table>
+  <thead><tr><th>Module</th><th>Responsibility</th></tr></thead>
+  <tbody>
+    <tr><td>config.py</td><td>All data types: <code>LikertStance</code>, <code>PoliticalLeaning</code>, <code>MemoryCondition</code>, <code>SimulationConfig</code>. Single source of truth for enums. <code>load_config()</code> reads env vars, validates, smoke-tests prompts.</td></tr>
+    <tr><td>personas.py</td><td>Loads <code>AgentPersona</code> objects from <code>topics/{slug}.py</code>. Raises if <code>n_agents</code> exceeds personas defined.</td></tr>
+    <tr><td>exchange.py</td><td>Multi-turn dialogue between one agent pair. Returns <code>list[ExchangeTurn]</code>. Knows nothing about annotation, logging, or memory conditions — receives <code>AgentMemory</code> via dependency injection.</td></tr>
+    <tr><td>annotator.py</td><td>Third-party LLM reads each agent's utterances and returns a <code>LikertStance</code>. Clamps output to ±1 from prior stance. Retries up to <code>MAX_RETRIES=3</code> on parse failure.</td></tr>
+    <tr><td>memory.py</td><td><code>NullMemory</code> (no-op) and <code>GhostMemory</code> (KG-backed). Null Object Pattern — <code>exchange.py</code> calls <code>absorb()</code> and <code>get_context()</code> without knowing which is active.</td></tr>
+    <tr><td>triplets.py</td><td>Extracts <code>Triplet(subject, predicate, object, dimension, round)</code> from utterance text via LLM. Batched via <code>extract_triplets_batch()</code>.</td></tr>
+    <tr><td>simulation.py</td><td>The only module that knows which memory condition is active. Owns the day-based main loop, stances dict, and the backup→run→annotate→log→checkpoint sequence.</td></tr>
+    <tr><td>tracker.py</td><td>Writes one CSV row per exchange. Columns: iteration, agent IDs, stances before/after, sim clock.</td></tr>
+    <tr><td>checkpoint.py</td><td>Writes <code>checkpoint.json</code> after each day completes. On resume: reads checkpoint, restores DB backup, skips completed days.</td></tr>
+    <tr><td>analysis/metrics.py</td><td>Entropy <code>H(t)</code>, std deviation σ(t), effective clusters <code>C(t)</code>, transition matrix <code>T_ij</code>, acceptance matrix <code>A_ij</code>, <code>P(acceptance | Δstance)</code>.</td></tr>
+    <tr><td>analysis/plots.py</td><td>Generates 7 decision-useful plots plus 2 cross-condition comparison heatmaps.</td></tr>
+  </tbody>
+</table>
+
+<h3>GhostKG &amp; FSRS</h3>
+
+<p><code>GhostMemory</code> wraps a <code>ghost_kg.AgentManager</code>. Each agent has its own knowledge graph keyed by <code>agent_id</code>. When a listener receives an utterance, <code>absorb()</code> extracts triplets and writes them via <code>AgentManager.absorb_content()</code>.</p>
+
+<p>The FSRS (Free Spaced Repetition Scheduler) algorithm scores each triplet's retrievability based on elapsed time since last review. The clock advances <code>CLOCK_ADVANCE_HOURS</code> per simulated day (default 24h). At 50 iterations that is roughly 7 weeks of simulated time — enough for early-day memories to decay substantially.</p>
+</section>
+
+<section id="mechanics">
+<h2>Simulation Mechanics</h2>
+
+<h3>Day-based loop</h3>
+
+<p>One iteration equals one day. Every agent initiates exactly one exchange per day. Order is randomized each day.</p>
+
+<pre><code>for day in range(start_day, n_iterations + 1):
+    backup_db(day - 1)                    # crash safety snapshot
+    advance_clock(24h)
+    set_agent_times(clock)                # FSRS decay reference
+
+    day_order = shuffle(all_personas)
+    for initiator in day_order:
+        partner = random_choice(others)
+        exchange_log = run_exchange(initiator, partner, n_turns)
+        stance_a, stance_b = annotate_many([initiator, partner], exchange_log)
+        update_stances(stance_a, stance_b)
+        tracker.log(day, ...)
+
+    write_checkpoint(day)                 # once per day, not per exchange</code></pre>
+
+<p>Contrast with the old LODAS approach: one random pair per iteration (some agents could act zero times in a day, others multiple times). The day-based loop ensures symmetric agent participation.</p>
+
+<h3>Exchange</h3>
+
+<p>An exchange is a multi-turn dialogue between two agents. <code>n_turns</code> is sampled uniformly from <code>[MIN_TURNS, MAX_TURNS]</code> each time. Agents alternate speaker/listener. After each turn the listener absorbs the utterance into memory.</p>
+
+<pre><code>ExchangeTurn(turn=1, speaker_id="agent_001", speaker_name="Zoe",
+             listener_id="agent_002", utterance="I believe...")</code></pre>
+
+<h3>Annotation &amp; Likert clamp</h3>
+
+<p>A separate annotator LLM reads only each agent's own utterances from an exchange and outputs a stance label. It does not see the other agent's text (bias prevention).</p>
+
+<p>The output is clamped to ±1 from the agent's prior stance:</p>
+
+<pre><code>new_stance = parse_likert(raw)
+clamped_score = max(prev.score - 1, min(prev.score + 1, new_stance.score))
+return LikertStance.from_score(clamped_score)</code></pre>
+
+<p>Without this clamp, agents jump 4 points in 2 turns (observed in early runs). The clamp enforces the incremental opinion change assumption that underpins the EPJ dynamics model.</p>
+
+<h3>Memory absorption</h3>
+
+<p>For KG conditions, <code>GhostMemory.absorb()</code> calls <code>extract_triplets_batch()</code> once per active dimension. Triplets go into the agent's GhostKG graph. On the next exchange, <code>get_context()</code> retrieves the highest-retrievability triplets and injects them into the agent's system prompt.</p>
+
+<p>Triplet structure:</p>
+<pre><code>Triplet(subject="immigrants", predicate="contribute to", object="local tax base",
+        dimension="general", round=3)</code></pre>
+
+<p><code>round</code> is the day number, used for recency filtering when retrieving context.</p>
+
+<h3>Crash recovery</h3>
+
+<p>Before each day: <code>backup_db(day-1)</code> snapshots the GhostKG SQLite DB. After a crash: <code>restore_db_backup(last_completed)</code> rolls back to a consistent state, then the loop resumes from <code>last_completed + 1</code>. CSV rows for completed days are never re-written.</p>
+</section>
+
+<section id="conditions">
+<h2>The 4 Conditions</h2>
+
+<table>
+  <thead>
+    <tr><th>Condition</th><th>Memory</th><th>KG Dimensions Active</th><th>What agents remember</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><span class="condition-name">no_kg</span></td>
+      <td><code>NullMemory</code></td>
+      <td>none</td>
+      <td>Nothing. Stateless agents. LODAS baseline.</td>
+    </tr>
+    <tr>
+      <td><span class="condition-name">general_only</span></td>
+      <td><code>GhostMemory</code></td>
+      <td>general</td>
+      <td>Facts about the topic: policies, statistics, events heard in prior exchanges.</td>
+    </tr>
+    <tr>
+      <td><span class="condition-name">tom_only</span></td>
+      <td><code>GhostMemory</code></td>
+      <td>tom</td>
+      <td>What the agent believes about <em>other agents'</em> views (Theory of Mind tracking).</td>
+    </tr>
+    <tr>
+      <td><span class="condition-name">full_kg</span></td>
+      <td><code>GhostMemory</code></td>
+      <td>general + tom + beliefs</td>
+      <td>Topic facts, others' views, and the agent's own stated positions over time.</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>All four conditions use the same agents, topic, RNG seed, and number of days. The only variable is what memory is active.</p>
+</section>
+
+<section id="config">
+<h2>Configuration</h2>
+
+<p>All parameters are environment variables. Set them in <code>.env</code> or prefix the run command. The <code>load_config()</code> function reads, validates, and smoke-tests prompts before the first LLM call.</p>
+
+<table>
+  <thead><tr><th>Variable</th><th>Default</th><th>Description</th></tr></thead>
+  <tbody>
+    <tr><td>TOPIC</td><td>immigration policy</td><td>Slug or full label. Resolved to <code>topics/{slug}.py</code>.</td></tr>
+    <tr><td>N_AGENTS</td><td>12</td><td>Number of agents. Must not exceed personas defined in the topic file.</td></tr>
+    <tr><td>N_ITERATIONS</td><td>50</td><td>Number of simulated days.</td></tr>
+    <tr><td>MIN_TURNS</td><td>2</td><td>Minimum turns per exchange.</td></tr>
+    <tr><td>MAX_TURNS</td><td>5</td><td>Maximum turns per exchange.</td></tr>
+    <tr><td>RANDOM_SEED</td><td>42</td><td>Seeds both agent shuffle and partner selection.</td></tr>
+    <tr><td>MEMORY_CONDITION</td><td>no_kg</td><td>One of: <code>no_kg</code>, <code>general_only</code>, <code>tom_only</code>, <code>full_kg</code>.</td></tr>
+    <tr><td>CLOCK_ADVANCE_HOURS</td><td>24</td><td>Simulated hours per iteration. Controls FSRS decay rate.</td></tr>
+    <tr><td>LLM_PROVIDER</td><td>ollama</td><td>One of: <code>ollama</code>, <code>anthropic</code>, <code>openai</code>, <code>groq</code>, <code>vllm</code>.</td></tr>
+    <tr><td>LLM_MODEL</td><td>llama3.2</td><td>Model identifier for the chosen provider.</td></tr>
+    <tr><td>LLM_BASE_URL</td><td>http://localhost:8000/v1</td><td>Base URL for vLLM or OpenAI-compatible endpoint.</td></tr>
+    <tr><td>LLM_MAX_TOKENS</td><td>512</td><td>Max tokens per LLM response.</td></tr>
+    <tr><td>LLM_TEMPERATURE</td><td>0.7</td><td>Sampling temperature. Range (0, 2].</td></tr>
+    <tr><td>LLM_TOP_P</td><td>0.95</td><td>Nucleus sampling parameter. Range (0, 1].</td></tr>
+    <tr><td>LLM_MAX_CONCURRENCY</td><td>8</td><td>Max parallel LLM requests in flight at once.</td></tr>
+    <tr><td>PARALLEL_EXCHANGE_JOBS</td><td>1</td><td>Set &gt;1 to activate vLLM parallel scheduler (disjoint pairs run concurrently).</td></tr>
+    <tr><td>OUTPUT_DIR</td><td>data/run_01</td><td>Where results.csv, checkpoint.json, and simulation.db are written.</td></tr>
+    <tr><td>DB_PATH</td><td>data/run_01/simulation.db</td><td>GhostKG SQLite database path.</td></tr>
+    <tr><td>PYTHONDONTWRITEBYTECODE</td><td>1</td><td>Set this (or use <code>-B</code> flag) to suppress all __pycache__ generation.</td></tr>
+  </tbody>
+</table>
+</section>
+
+<section id="running">
+<h2>Running</h2>
+
+<h3>Single condition</h3>
+
+<pre><code>PYTHONDONTWRITEBYTECODE=1 \
+TOPIC=immigration \
+MEMORY_CONDITION=no_kg \
+OUTPUT_DIR=data/immigration/no_kg \
+DB_PATH=data/immigration/no_kg/simulation.db \
+N_AGENTS=140 \
+N_ITERATIONS=10 \
+RANDOM_SEED=42 \
+.venv/bin/python src/simulation.py</code></pre>
+
+<h3>Full ablation (all 4 conditions + plots)</h3>
+
+<pre><code>bash run_ablation.sh immigration 10</code></pre>
+
+<p>The script runs all four conditions sequentially, then generates plots into <code>data/immigration/plots/</code>.</p>
+
+<h3>Multiple seeds</h3>
+
+<pre><code>bash run_ablation.sh immigration 10 42,43,44</code></pre>
+
+<p>Results go into <code>data/immigration/seed_42/no_kg/</code>, <code>data/immigration/seed_43/no_kg/</code>, etc.</p>
+
+<h3>Resuming a crashed run</h3>
+
+<p>Re-run the exact same command. <code>load_checkpoint()</code> reads <code>checkpoint.json</code>, <code>restore_db_backup()</code> rolls the GhostKG DB back to the last completed day, and the loop starts from <code>last_completed + 1</code>. No data is lost or duplicated.</p>
+
+<h3>Generate plots standalone</h3>
+
+<pre><code>PYTHONDONTWRITEBYTECODE=1 .venv/bin/python analysis/plots.py \
+  --data-dir data/immigration \
+  --output-dir data/immigration/plots</code></pre>
+
+<h3>No __pycache__ files</h3>
+
+<p><code>run_ablation.sh</code> sets <code>PYTHONDONTWRITEBYTECODE=1</code> as a process-level env var before Python starts. For direct runs, prefix with the env var or use <code>python -B</code>. The <code>.env</code> file also sets this, but <code>python-dotenv</code> loads it after the interpreter starts — the process-level prefix is authoritative.</p>
+</section>
+
+<section id="topics">
+<h2>Topics</h2>
+
+<p>A topic is a Python file in <code>topics/</code> that defines <code>TOPIC_LABEL</code> and <code>PERSONAS</code>. No other file needs to change when you add a topic.</p>
+
+<h3>File structure</h3>
+
+<pre><code>TOPIC_NAME  = "climate"
+TOPIC_LABEL = "climate change policy"
+
+PERSONAS = [
+    {
+        "agent_id":            "agent_001",
+        "name":                "Jordan Wells",
+        "leaning":             PoliticalLeaning.FAR_LEFT,
+        "age":                 28,
+        "occupation":          "climate researcher",
+        "persona_description": "...",
+        "initial_stance":      LikertStance.STRONGLY_AGAINST,
+    },
+    # ... remaining agents
+]</code></pre>
+
+<h3>Stance convention</h3>
+
+<p>Decide before writing: what does "In Favor" mean for this topic? For immigration: In Favor = supports restrictive policy. For climate: In Favor = supports strong regulation. Document it in the file header. The prompts inject the label literally — the model does not infer the domain convention.</p>
+
+<h3>Recommended distribution (140 agents)</h3>
+
+<table>
+  <thead><tr><th>Leaning</th><th>Count</th><th>Initial Stance</th></tr></thead>
+  <tbody>
+    <tr><td>FAR_LEFT</td><td>14 (10%)</td><td>STRONGLY_AGAINST</td></tr>
+    <tr><td>LEFT</td><td>28 (20%)</td><td>AGAINST</td></tr>
+    <tr><td>CENTER</td><td>56 (40%)</td><td>NEUTRAL</td></tr>
+    <tr><td>RIGHT</td><td>28 (20%)</td><td>IN_FAVOR</td></tr>
+    <tr><td>FAR_RIGHT</td><td>14 (10%)</td><td>STRONGLY_IN_FAVOR</td></tr>
+  </tbody>
+</table>
+
+<h3>Generate a new topic using the topic-builder agent</h3>
+
+<pre><code># In Claude Code:
+# "Use the topic-builder agent — topic_name: climate,
+#  topic_label: 'climate change policy',
+#  stance_convention: 'In Favor = supports strong climate regulation',
+#  n_agents: 140"</code></pre>
+
+<p>The agent creates the file, checks the distribution, and validates the import before returning.</p>
+</section>
+
+<section id="agents">
+<h2>Agentic Team</h2>
+
+<p>Five subagents live in <code>.claude/agents/</code>. Each has its own context window and no memory of prior conversations. They start cold — give them full context in the prompt.</p>
+
+<table>
+  <thead><tr><th>Agent</th><th>Model</th><th>Use when</th><th>Returns</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><code>code-reviewer</code></td>
+      <td>sonnet</td>
+      <td>Before committing any code change</td>
+      <td><code>[BLOCKER/WARNING/NOTE] file:line — description</code>. Summary line: N blockers, M warnings. Does not fix — reports only.</td>
+    </tr>
+    <tr>
+      <td><code>sim-runner</code></td>
+      <td>haiku</td>
+      <td>Run one condition. Give it: topic, condition, n_days, n_agents, seed.</td>
+      <td>Status: COMPLETED/FAILED. Row count vs expected. Any errors.</td>
+    </tr>
+    <tr>
+      <td><code>result-analyst</code></td>
+      <td>haiku</td>
+      <td>After a run, to get metric numbers without generating plots</td>
+      <td>Markdown table: entropy delta, effective clusters, acceptance slope per condition.</td>
+    </tr>
+    <tr>
+      <td><code>topic-builder</code></td>
+      <td>sonnet</td>
+      <td>Generate a new topic file with N personas</td>
+      <td><code>topics/{name}.py</code> written, import validated. Fails loud on schema error.</td>
+    </tr>
+    <tr>
+      <td><code>email-reader</code></td>
+      <td>haiku</td>
+      <td>Parse a Rossetti email thread into action items</td>
+      <td>Structured list: Code Changes (REQUIRED/SUGGESTED), Experiments, Open Questions, Next Steps.</td>
+    </tr>
+    <tr>
+      <td><code>docs-writer</code></td>
+      <td>sonnet</td>
+      <td>Update or regenerate this documentation site</td>
+      <td>Writes <code>docs/index.html</code>, validates HTML, returns line count.</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3>Standard workflows</h3>
+
+<p><strong>Before committing</strong>: code-reviewer → fix blockers → commit.</p>
+
+<p><strong>New experiment</strong>: topic-builder (if new topic) → sim-runner ×4 in parallel → result-analyst → <code>python analysis/plots.py</code>.</p>
+
+<p><strong>Processing Rossetti email</strong>: email-reader → add REQUIRED changes to PLAN.md → implement → code-reviewer → commit.</p>
+
+<h3>Memory Palace</h3>
+
+<p>Project memory persists across sessions in <code>~/.claude/projects/.../memory/</code>. The index file (<code>MEMORY.md</code>) loads automatically at the start of every session. It points to four files:</p>
+
+<ul>
+  <li><code>project_ghostkg_opinion_dynamics.md</code> — research question, architecture, key decisions, current status</li>
+  <li><code>decisions_ghostkg.md</code> — why specific choices were made (Likert clamp, NullMemory pattern, day loop, 140-agent minimum)</li>
+  <li><code>agents_team.md</code> — when to use each agent, recommended workflows</li>
+  <li><code>user_pranav.md</code> — Pranav's background, collaboration preferences</li>
+</ul>
+
+<p>Decisions are saved proactively after any architectural or research choice. The "Why" is always recorded alongside the decision — without it, the memory is just a fact list.</p>
+</section>
+
+<section id="results">
+<h2>First Results</h2>
+
+<p>12 agents, immigration topic, 50 iterations, llama3.2:3b. These results use the old random-pair loop (pre-Phase 1). Re-run needed with day-based loop and 140 agents.</p>
+
+<table class="results-table">
+  <thead>
+    <tr><th>Condition</th><th>Entropy Δ</th><th>Acceptance bias P(A|Δ=0)</th><th>Key signal</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><span class="condition-name">no_kg</span></td>
+      <td>+0.85</td>
+      <td>+0.21 (sycophantic)</td>
+      <td>Baseline. Agents shift toward speaker 21% more when stances already match.</td>
+    </tr>
+    <tr>
+      <td><span class="condition-name">general_only</span></td>
+      <td>+0.72</td>
+      <td>−0.175 (reversed)</td>
+      <td>Factual memory inverts the bias. Agents resist when they recall contradicting facts.</td>
+    </tr>
+    <tr>
+      <td><span class="condition-name">tom_only</span></td>
+      <td>+1.19</td>
+      <td>+0.31 (amplified)</td>
+      <td>Highest divergence. Tracking others' views makes agents push back harder — more friction, not less.</td>
+    </tr>
+    <tr>
+      <td><span class="condition-name">full_kg</span></td>
+      <td>+0.38</td>
+      <td>+0.08 (near-zero)</td>
+      <td>Most stable. All three dimensions together dampen sycophancy most effectively.</td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="note">
+  Patricia (FAR_RIGHT, initial stance +2) shifted to −2 in 2 turns under <code>tom_only</code>. This is the key observation that motivated the ±1 Likert clamp in Phase 1.
+</div>
+
+<h3>Next steps</h3>
+
+<ul>
+  <li>Rerun baseline: 140 agents, immigration, <code>no_kg</code>, 10 days (verify Phase 1 code)</li>
+  <li>Full ablation: all 4 conditions, 140 agents, 30+ days</li>
+  <li>Climate topic: moderately divisive, same pipeline</li>
+  <li>Ship of Theseus: neutral control, random initial stances</li>
+  <li>KG characterization: triplet_count_over_time, top_predicates, agent_kg_overlap</li>
+  <li>Annotator context experiment: provide 1–3 prior exchange steps to the annotator</li>
+</ul>
+</section>
+
+<hr>
+<p style="font-size:.78rem; color:#888;">Generated from source. Update with <code>docs-writer</code> agent after major changes.</p>
+
+</body>
+</html>
