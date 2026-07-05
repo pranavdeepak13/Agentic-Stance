@@ -5,604 +5,966 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>GhostKG Opinion Dynamics</title>
 <style>
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --sidebar-w:230px;
+  --bg:#fff;
+  --text:#111;
+  --muted:#555;
+  --border:#e0e0e0;
+  --code-bg:#f5f5f5;
+  --accent:#0055cc;
+  --tag-bg:#111;
+  --note-bg:#fffbe6;
+  --note-border:#e6b800;
+  --fn-bg:#f5f5f5;
+  --dc-bg:#e8f0fe;
+}
+body{display:flex;font-family:system-ui,-apple-system,sans-serif;font-size:15px;line-height:1.65;color:var(--text);background:var(--bg)}
 
-  body {
-    font-family: system-ui, -apple-system, sans-serif;
-    color: #111;
-    background: #fff;
-    display: flex;
-    min-height: 100vh;
-  }
+/* ---- SIDEBAR ---- */
+.sidebar{
+  width:var(--sidebar-w);
+  min-height:100vh;
+  border-right:1px solid var(--border);
+  padding:1.5rem 0;
+  position:sticky;
+  top:0;
+  height:100vh;
+  overflow-y:auto;
+  flex-shrink:0;
+  background:#fafafa;
+}
+.sidebar-title{
+  padding:.75rem 1.2rem .25rem;
+  font-size:.65rem;
+  font-weight:700;
+  text-transform:uppercase;
+  letter-spacing:.1em;
+  color:#888;
+  margin-top:1rem;
+}
+.sidebar-title:first-child{margin-top:0}
+.sidebar nav a{
+  display:block;
+  padding:.28rem 1.2rem;
+  font-size:.82rem;
+  color:var(--muted);
+  text-decoration:none;
+  border-left:2px solid transparent;
+}
+.sidebar nav a:hover{color:var(--accent)}
+.sidebar nav a.active{
+  color:var(--accent);
+  border-left-color:var(--accent);
+  font-weight:600;
+  background:#f0f5ff;
+}
+.version-badge{
+  margin:1.2rem 1.2rem .5rem;
+  font-size:.72rem;
+  color:#888;
+  border-top:1px solid var(--border);
+  padding-top:.8rem;
+}
 
-  /* ── Sidebar ─────────────────────────────────────── */
-  .sidebar {
-    width: 220px;
-    min-width: 220px;
-    border-right: 1px solid #e4e4e4;
-    padding: 1.6rem 0;
-    position: sticky;
-    top: 0;
-    height: 100vh;
-    overflow-y: auto;
-    background: #fafafa;
-    display: flex;
-    flex-direction: column;
-  }
+/* ---- CONTENT ---- */
+.content{
+  flex:1;
+  max-width:860px;
+  padding:2.5rem 3rem 5rem;
+  min-width:0;
+}
+.page-header{margin-bottom:2.5rem}
+.page-header h1{font-size:1.5rem;font-weight:800;border-bottom:2px solid #000;padding-bottom:.5rem;margin-bottom:.6rem}
+.page-header .subtitle{color:var(--muted);font-size:.9rem}
 
-  .sidebar-brand {
-    padding: 0 1.2rem 1.4rem;
-    border-bottom: 1px solid #e4e4e4;
-    margin-bottom: 1.2rem;
-  }
+section{margin-bottom:3rem;scroll-margin-top:2rem}
+h2{font-size:.85rem;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:#444;margin:2.5rem 0 1rem;padding-bottom:.3rem;border-bottom:1px solid var(--border)}
+h3{font-size:.95rem;font-weight:700;margin:1.8rem 0 .6rem}
+h4{font-size:.85rem;font-weight:700;margin:1.2rem 0 .4rem;color:var(--muted)}
+p{margin:.6rem 0}
+ul,ol{margin:.6rem 0 .6rem 1.4rem}
+li{margin:.25rem 0}
 
-  .sidebar-brand strong {
-    display: block;
-    font-size: .95rem;
-    font-weight: 700;
-    color: #111;
-    line-height: 1.2;
-  }
+pre{background:var(--code-bg);border-left:3px solid #222;padding:.85rem 1rem;overflow-x:auto;font-size:.8rem;margin:1rem 0;border-radius:2px}
+code{font-family:'Menlo','Consolas',monospace;font-size:.82em;background:var(--code-bg);padding:.1em .3em;border-radius:2px}
+pre code{background:none;padding:0;font-size:inherit}
 
-  .sidebar-brand .tagline {
-    font-size: .72rem;
-    color: #777;
-    margin-top: .25rem;
-    line-height: 1.35;
-  }
+table{width:100%;border-collapse:collapse;font-size:.88rem;margin:1rem 0}
+th{text-align:left;border-bottom:2px solid var(--text);padding:.4rem .5rem;font-size:.75rem;text-transform:uppercase;letter-spacing:.06em}
+td{padding:.35rem .5rem;border-bottom:1px solid var(--border);vertical-align:top}
 
-  .nav-group {
-    margin-bottom: 1.4rem;
-    padding: 0 .8rem;
-  }
+.note{background:var(--note-bg);border-left:3px solid var(--note-border);padding:.7rem 1rem;margin:1rem 0;font-size:.88rem}
+.tag{display:inline-block;background:var(--tag-bg);color:#fff;font-size:.65rem;padding:.15em .45em;font-weight:700;letter-spacing:.04em;vertical-align:middle;border-radius:2px}
+.async-badge{display:inline-block;background:#0055cc;color:#fff;font-size:.65rem;padding:.1em .4em;font-weight:700;border-radius:2px;vertical-align:middle}
 
-  .nav-label {
-    font-size: .67rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: .1em;
-    color: #999;
-    padding: 0 .4rem;
-    margin-bottom: .5rem;
-  }
+/* ---- ARCHITECTURE DIAGRAM ---- */
+.arch-section{
+  margin:1rem 0;
+  padding:1.2rem;
+  background:#fafafa;
+  border:1px solid var(--border);
+  border-radius:4px;
+  font-family:'Menlo','Consolas',monospace;
+  font-size:.78rem;
+  line-height:1.7;
+  overflow-x:auto;
+}
 
-  .nav-item {
-    display: block;
-    padding: .3rem .5rem;
-    font-size: .84rem;
-    color: #444;
-    text-decoration: none;
-    border-radius: 4px;
-    transition: background .1s, color .1s;
-    line-height: 1.4;
-  }
+/* ---- API CARDS ---- */
+.fn-card{border:1px solid var(--border);border-radius:4px;margin:1.2rem 0;overflow:hidden}
+.fn-header{
+  background:var(--fn-bg);
+  padding:.55rem 1rem;
+  font-family:'Menlo','Consolas',monospace;
+  font-size:.82rem;
+  border-bottom:1px solid var(--border);
+  display:flex;
+  align-items:center;
+  gap:.5rem;
+  flex-wrap:wrap;
+}
+.fn-name{font-weight:700;color:#111}
+.fn-sig{color:var(--muted)}
+.fn-body{padding:.7rem 1rem;font-size:.88rem}
+.fn-body p{margin:.4rem 0}
+.param-table{width:100%;border-collapse:collapse;font-size:.82rem;margin:.6rem 0}
+.param-table th{font-size:.7rem;padding:.3rem .5rem;border-bottom:1px solid var(--border);text-transform:uppercase;letter-spacing:.05em;background:#f5f5f5}
+.param-table td{padding:.3rem .5rem;border-bottom:1px solid #f0f0f0;vertical-align:top}
+.param-table td:first-child{font-family:'Menlo','Consolas',monospace;font-size:.78rem;color:#333;white-space:nowrap}
+.param-table td:nth-child(2){color:#555;font-style:italic;white-space:nowrap}
+.returns{margin:.6rem 0;font-size:.85rem}
+.returns strong{font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.dc-card{border:1px solid #b8d0f7;border-radius:4px;margin:1.2rem 0;overflow:hidden}
+.dc-header{background:var(--dc-bg);padding:.55rem 1rem;font-family:'Menlo','Consolas',monospace;font-size:.85rem;font-weight:700;border-bottom:1px solid #b8d0f7}
+.dc-body{padding:.7rem 1rem;font-size:.88rem}
+.field-table{width:100%;border-collapse:collapse;font-size:.82rem;margin:.6rem 0}
+.field-table th{font-size:.7rem;padding:.3rem .5rem;border-bottom:1px solid var(--border);text-transform:uppercase;letter-spacing:.05em}
+.field-table td{padding:.28rem .5rem;border-bottom:1px solid #f0f0f0;vertical-align:top}
+.field-table td:first-child{font-family:'Menlo','Consolas',monospace;font-size:.78rem;white-space:nowrap}
+.field-table td:nth-child(2){color:#555;font-style:italic}
 
-  .nav-item:hover { background: #ebebeb; color: #111; }
-
-  .nav-item.active {
-    background: #111;
-    color: #fff;
-    font-weight: 500;
-  }
-
-  .sidebar-footer {
-    margin-top: auto;
-    padding: 1rem 1.2rem 0;
-    border-top: 1px solid #e4e4e4;
-    font-size: .72rem;
-    color: #aaa;
-    line-height: 1.5;
-  }
-
-  /* ── Content ─────────────────────────────────────── */
-  .content {
-    flex: 1;
-    padding: 2.5rem 3rem 5rem;
-    max-width: 860px;
-    min-width: 0;
-  }
-
-  .page-header {
-    margin-bottom: 2.5rem;
-    padding-bottom: 1.5rem;
-    border-bottom: 1px solid #e4e4e4;
-  }
-
-  .page-header h1 {
-    font-size: 1.5rem;
-    font-weight: 700;
-    margin-bottom: .4rem;
-  }
-
-  .page-header .subtitle {
-    color: #555;
-    font-size: .95rem;
-    margin-bottom: .5rem;
-  }
-
-  .page-header .meta {
-    font-size: .79rem;
-    color: #888;
-  }
-
-  section { margin-bottom: 3rem; }
-
-  h2 {
-    font-size: .83rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: .09em;
-    color: #555;
-    border-bottom: 1px solid #e4e4e4;
-    padding-bottom: .45rem;
-    margin-bottom: 1.2rem;
-    margin-top: 2.8rem;
-  }
-
-  h3 {
-    font-size: .95rem;
-    font-weight: 600;
-    margin-top: 1.6rem;
-    margin-bottom: .6rem;
-    color: #111;
-  }
-
-  p { line-height: 1.7; margin-bottom: .9rem; font-size: .93rem; }
-
-  pre {
-    background: #f5f5f5;
-    border-left: 3px solid #222;
-    padding: .85rem 1rem;
-    overflow-x: auto;
-    font-size: .79rem;
-    margin: .8rem 0 1.2rem;
-    border-radius: 0 3px 3px 0;
-    line-height: 1.55;
-  }
-
-  code {
-    font-family: 'Menlo', 'Consolas', monospace;
-    font-size: .8em;
-    background: #efefef;
-    padding: .1em .35em;
-    border-radius: 2px;
-  }
-
-  pre code { background: none; padding: 0; font-size: 1em; }
-
-  table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: .86rem;
-    margin: .8rem 0 1.4rem;
-  }
-
-  th {
-    text-align: left;
-    border-bottom: 2px solid #111;
-    padding: .4rem .6rem;
-    font-size: .74rem;
-    text-transform: uppercase;
-    letter-spacing: .07em;
-    color: #333;
-  }
-
-  td {
-    padding: .38rem .6rem;
-    border-bottom: 1px solid #eaeaea;
-    vertical-align: top;
-    line-height: 1.55;
-  }
-
-  td:first-child {
-    white-space: nowrap;
-    font-family: 'Menlo', monospace;
-    font-size: .78rem;
-    color: #333;
-  }
-
-  ul { margin: .5rem 0 .9rem 1.4rem; }
-  li { margin-bottom: .35rem; font-size: .91rem; line-height: 1.6; }
-
-  .note {
-    background: #fffbe6;
-    border-left: 3px solid #e6b800;
-    padding: .7rem 1rem;
-    margin: 1rem 0;
-    font-size: .87rem;
-    line-height: 1.6;
-  }
-
-  .diagram {
-    background: #f5f5f5;
-    border: 1px solid #ddd;
-    padding: 1rem 1.2rem;
-    font-family: 'Menlo', 'Consolas', monospace;
-    font-size: .77rem;
-    line-height: 1.6;
-    overflow-x: auto;
-    margin: 1rem 0 1.4rem;
-    border-radius: 3px;
-  }
-
-  .condition-name { font-weight: 600; font-family: monospace; }
-
-  hr { border: none; border-top: 1px solid #e8e8e8; margin: 2rem 0; }
-
-  /* ── Mobile ─────────────────────────────────────── */
-  @media (max-width: 700px) {
-    body { flex-direction: column; }
-    .sidebar {
-      width: 100%;
-      min-width: 0;
-      height: auto;
-      position: static;
-      border-right: none;
-      border-bottom: 1px solid #e4e4e4;
-      padding: 1rem;
-    }
-    .nav-group { display: inline-flex; flex-wrap: wrap; gap: .3rem; margin: 0; }
-    .nav-label { display: none; }
-    .content { padding: 1.5rem 1.2rem 3rem; }
-  }
+@media(max-width:700px){
+  body{flex-direction:column}
+  .sidebar{width:100%;height:auto;min-height:auto;position:relative;border-right:none;border-bottom:1px solid var(--border)}
+  .content{padding:1.5rem 1.2rem 3rem}
+}
 </style>
 </head>
 <body>
 
-<aside class="sidebar">
-  <div class="sidebar-brand">
-    <strong>GhostKG Opinion Dynamics</strong>
-    <div class="tagline">LLM agents · KG memory · sycophancy</div>
-  </div>
-
+<div class="sidebar">
+  <div class="sidebar-title">Guide</div>
   <nav>
-    <div class="nav-group">
-      <div class="nav-label">Guide</div>
-      <a href="#overview"      class="nav-item active">Overview</a>
-      <a href="#architecture"  class="nav-item">Architecture</a>
-      <a href="#mechanics"     class="nav-item">Mechanics</a>
-      <a href="#conditions"    class="nav-item">4 Conditions</a>
-      <a href="#config"        class="nav-item">Configuration</a>
-      <a href="#running"       class="nav-item">Running</a>
-      <a href="#topics"        class="nav-item">Topics</a>
-      <a href="#agents"        class="nav-item">Agentic Team</a>
-      <a href="#results"       class="nav-item">Results</a>
-    </div>
-
-    <div class="nav-group">
-      <div class="nav-label">Reference</div>
-      <a href="api.html"       class="nav-item">API Reference →</a>
-    </div>
-
-    <div class="nav-group">
-      <div class="nav-label">Links</div>
-      <a href="https://github.com/pranavdeepak13/Agentic-Stance" class="nav-item" target="_blank">GitHub ↗</a>
-      <a href="https://doi.org/10.1140/epjds/s13688-025-00553-5"  class="nav-item" target="_blank">EPJ Paper ↗</a>
-    </div>
+    <a href="#overview">Overview</a>
+    <a href="#architecture">Architecture</a>
+    <a href="#mechanics">How it Works</a>
+    <a href="#conditions">4 Conditions</a>
+    <a href="#data-storage">Data Storage</a>
+    <a href="#configuration">Configuration</a>
+    <a href="#running">Running</a>
+    <a href="#topics">Topics</a>
+    <a href="#agents">Agentic Team</a>
+    <a href="#results">Results</a>
   </nav>
 
-  <div class="sidebar-footer">
-    Collaboration with Dr. Giulio Rossetti<br>
-    CNR Italy / KDD Lab Pisa
-  </div>
-</aside>
+  <div class="sidebar-title">API Reference</div>
+  <nav>
+    <a href="#api-config">config.py</a>
+    <a href="#api-personas">personas.py</a>
+    <a href="#api-llm">llm.py</a>
+    <a href="#api-exchange">exchange.py</a>
+    <a href="#api-annotator">annotator.py</a>
+    <a href="#api-memory">memory.py</a>
+    <a href="#api-triplets">triplets.py</a>
+    <a href="#api-tracker">tracker.py</a>
+    <a href="#api-checkpoint">checkpoint.py</a>
+    <a href="#api-simulation">simulation.py</a>
+  </nav>
 
-<main class="content">
+  <div class="version-badge">v1.1 &nbsp;|&nbsp; 2026-07-06</div>
+</div>
 
-  <div class="page-header">
-    <h1>GhostKG Opinion Dynamics</h1>
-    <p class="subtitle">Extending LLM opinion dynamics with structured decaying KG memory to measure sycophancy reduction</p>
-    <p class="meta">Extends: Cau et al. 2025, <em>EPJ Data Science</em> (LODAS framework)</p>
-  </div>
+<div class="content">
 
-  <!-- OVERVIEW -->
-  <section id="overview">
-    <h2>Overview</h2>
-    <p>LLM agents in opinion dynamics simulations are sycophantic — they shift their stated opinion toward whoever they just spoke with, regardless of prior beliefs. This project tests whether structured knowledge graph memory (GhostKG + FSRS spaced repetition) changes that behavior.</p>
-    <p>The core claim: <em>"Consistency-awareness mechanisms via KGs reduce intrinsic agreeableness and introduce more realistic friction into individual agent dynamics."</em></p>
-    <p>The system runs four ablation conditions across the same agents and topic. No-memory baseline (LODAS) vs. three KG configurations that give agents progressively more structured memory of past exchanges.</p>
-    <div class="note">This is not a replication of the EPJ paper — model, topic, and population differ. Results compare conditions against the project's own <code>no_kg</code> baseline, not EPJ figures.</div>
-  </section>
+<div class="page-header">
+  <h1>GhostKG Opinion Dynamics</h1>
+  <div class="subtitle">Structured, decaying memory for LLM agent opinion simulations.</div>
+</div>
 
-  <!-- ARCHITECTURE -->
-  <section id="architecture">
-    <h2>Architecture</h2>
+<!-- OVERVIEW -->
+<section id="overview">
+<h2>Overview</h2>
 
-    <div class="diagram">topics/{slug}.py ──► personas.py ──► AgentPersona[]
-                                     │
-                     ┌───────────────┼───────────────┐
-                     ▼               ▼               ▼
-                NullMemory      GhostMemory     GhostMemory
-                (no_kg)       (general/tom)    (full_kg: all 3)
-                     │               │
-                     └───────────────┘
-                             │
-                     simulation.py  ◄── config.py (.env)
-                             │
-            ┌────────────────┼────────────────┐
-            ▼                ▼                ▼
-       exchange.py      annotator.py      tracker.py
-            │                │                │
-       llm.py            llm.py          results.csv
-       memory.absorb                     exchanges.jsonl
-       triplets.py
-            │
-        GhostKG DB
-        (FSRS decay)</div>
+<p>This project studies how per-agent knowledge graph memory changes opinion dynamics in populations of LLM agents. It extends the LODAS baseline (Cau et al. 2025, EPJ Data Science) by giving agents a structured, decaying knowledge graph built on GhostKG.</p>
 
-    <h3>Module Map</h3>
-    <table>
-      <thead><tr><th>Module</th><th>Responsibility</th></tr></thead>
-      <tbody>
-        <tr><td>config.py</td><td>All data types: <code>LikertStance</code>, <code>PoliticalLeaning</code>, <code>MemoryCondition</code>, <code>SimulationConfig</code>. Single source of truth for enums. <code>load_config()</code> reads env vars, validates, smoke-tests prompts before first LLM call.</td></tr>
-        <tr><td>personas.py</td><td>Loads <code>AgentPersona</code> objects from <code>topics/{slug}.py</code>. Raises if <code>n_agents</code> exceeds personas defined in the file.</td></tr>
-        <tr><td>exchange.py</td><td>Multi-turn dialogue between one agent pair. Returns <code>list[ExchangeTurn]</code>. Blind to annotation, logging, and memory conditions — receives <code>AgentMemory</code> via dependency injection.</td></tr>
-        <tr><td>annotator.py</td><td>Third-party LLM reads each agent's utterances and returns a <code>LikertStance</code>. Clamps output to ±1 from prior stance. Retries up to <code>MAX_RETRIES=3</code> on parse failure, falls back to prior stance.</td></tr>
-        <tr><td>memory.py</td><td><code>NullMemory</code> (no-op) and <code>GhostMemory</code> (KG-backed). Null Object Pattern — exchange.py calls <code>absorb()</code> and <code>get_context()</code> without knowing which is active.</td></tr>
-        <tr><td>triplets.py</td><td>Extracts <code>Triplet(subject, predicate, object, dimension, round)</code> from utterance text via LLM. Batched via <code>extract_triplets_batch()</code>.</td></tr>
-        <tr><td>simulation.py</td><td>The only module that knows the memory condition. Owns the day-based main loop, stances dict, and the backup→exchange→annotate→log→checkpoint sequence.</td></tr>
-        <tr><td>tracker.py</td><td>Writes one CSV row per exchange. Separate JSONL log contains full conversation transcripts.</td></tr>
-        <tr><td>checkpoint.py</td><td>Writes <code>checkpoint.json</code> after each day. On resume: reads checkpoint, restores DB backup, skips completed days.</td></tr>
-        <tr><td>analysis/metrics.py</td><td>Entropy <code>H(t)</code>, std deviation σ(t), effective clusters <code>C(t)</code>, transition matrix <code>T_ij</code>, acceptance matrix <code>A_ij</code>, <code>P(acceptance | Δstance)</code>.</td></tr>
-      </tbody>
-    </table>
+<p><strong>Research question:</strong> Does KG memory help agents stay in-character as opinions shift? Does memory reduce or amplify the selective-agreement effects documented in the EPJ paper?</p>
 
-    <h3>GhostKG and FSRS</h3>
-    <p><code>GhostMemory</code> wraps a <code>ghost_kg.AgentManager</code>. Each agent has its own knowledge graph keyed by <code>agent_id</code>. When a listener receives an utterance, <code>absorb()</code> extracts triplets and writes them via <code>AgentManager.absorb_content()</code>.</p>
-    <p>The FSRS (Free Spaced Repetition Scheduler) algorithm scores each triplet's retrievability based on elapsed time since last review. The clock advances <code>CLOCK_ADVANCE_HOURS</code> per day (default 24h). At 50 iterations that is ~7 weeks of simulated time — enough for early-day memories to decay meaningfully.</p>
-  </section>
+<p><strong>Baseline (LODAS):</strong> Random pairwise agent exchanges. A separate annotator LLM reads each agent's utterances and assigns a 5-point Likert stance score after each exchange. No memory between exchanges.</p>
 
-  <!-- MECHANICS -->
-  <section id="mechanics">
-    <h2>Simulation Mechanics</h2>
+<p>This framework adds four ablation conditions on top of that baseline: no memory, general-fact KG only, Theory-of-Mind KG only, and full KG (all three dimensions). The only thing that changes between conditions is <code>MEMORY_CONDITION</code> in <code>.env</code>.</p>
 
-    <h3>Day-based loop</h3>
-    <p>One iteration equals one day. Every agent initiates exactly one exchange per day. Order is randomized each day. This replaces the old LODAS approach where one random pair was selected per iteration (some agents could act zero times, others multiple times).</p>
+<table>
+  <tr><th>Condition</th><th>What agents remember</th></tr>
+  <tr><td><code>no_kg</code></td><td>Nothing. Pure LODAS replication.</td></tr>
+  <tr><td><code>general_only</code></td><td>Topic facts extracted from conversations.</td></tr>
+  <tr><td><code>tom_only</code></td><td>Inferences about each other's views.</td></tr>
+  <tr><td><code>full_kg</code></td><td>All three KG dimensions: general + tom + beliefs.</td></tr>
+</table>
+</section>
 
-<pre><code>for day in range(start_day, n_iterations + 1):
-    backup_db(day - 1)                    # crash safety snapshot
-    advance_clock(24h)
-    set_agent_times(clock)                # FSRS decay reference
+<!-- ARCHITECTURE -->
+<section id="architecture">
+<h2>Architecture</h2>
 
-    day_order = shuffle(all_personas)
-    for initiator in day_order:
-        partner = random_choice(all - {initiator})
-        exchange_log = run_exchange(initiator, partner, n_turns, day=day)
-        stance_a, stance_b = annotate_many([initiator, partner])
-        update_stances(stance_a, stance_b)
-        tracker.log(day, ...)
+<div class="arch-section">
+ENTRY
+  simulation.py       reads config, owns the main loop
+  config.py           all data types, validation, .env loading
 
-    write_checkpoint(day)                 # once per day, not per exchange</code></pre>
+TOPICS  (static, per-topic file)
+  topics/{slug}.py    TOPIC_LABEL + PERSONAS list
+  personas.py         loads topic, builds AgentPersona objects
 
-    <h3>Exchange</h3>
-    <p>An exchange is a multi-turn dialogue. <code>n_turns</code> is sampled from <code>[MIN_TURNS, MAX_TURNS]</code> each time. Agents alternate speaker/listener. After each turn the listener absorbs the utterance into memory.</p>
-    <pre><code>ExchangeTurn(turn=1, speaker_id="agent_001", speaker_name="Zoe",
-             listener_id="agent_002", utterance="...")</code></pre>
+ONE EXCHANGE  (per agent per day)
+  exchange.py         multi-turn dialogue loop
+    llm.py              async LLM dispatch (Ollama / Anthropic / OpenAI / Groq / vLLM)
+    memory.py           absorb() after each turn  [Null Object Pattern]
+      triplets.py         KG triplet extraction via LLM  [GhostMemory path only]
 
-    <h3>Annotation and Likert clamp</h3>
-    <p>A separate annotator LLM reads only each agent's own utterances from an exchange and returns a stance label. It never sees the counterpart's text (bias prevention). The output is clamped to ±1 from prior stance:</p>
-<pre><code>new_stance    = parse_likert(raw)
-clamped_score = max(prev.score - 1, min(prev.score + 1, new_stance.score))
-return LikertStance.from_score(clamped_score)</code></pre>
-    <p>Without this clamp, agents jump 4 points in 2 turns. This was observed in early runs (Patricia, FAR_RIGHT initial +2, shifted to −2 in 2 turns under <code>tom_only</code>). The clamp enforces incremental opinion change consistent with the EPJ model assumptions.</p>
+ANNOTATION  (after each exchange)
+  annotator.py        reads agent utterances, assigns Likert stance
+                      clamps output to +-1 from previous stance
 
-    <h3>Memory absorption</h3>
-    <p>For KG conditions, <code>GhostMemory.absorb()</code> calls <code>extract_triplets_batch()</code> once per active dimension. Triplets are written to the agent's GhostKG graph. On the next exchange, <code>get_context()</code> retrieves highest-retrievability triplets and injects them into the agent's system prompt.</p>
-<pre><code>Triplet(subject="immigrants", predicate="contribute to",
-        object="local tax base", dimension="general", round=3)</code></pre>
-    <p><code>round</code> is the day number, used for recency filtering.</p>
+PERSISTENCE  (per day, after all agents have gone)
+  tracker.py          writes results.csv + exchanges.jsonl
+  checkpoint.py       writes checkpoint.json + .db.bak snapshots
 
-    <h3>Crash recovery</h3>
-    <p>Before each day: <code>backup_db(day-1)</code> snapshots the GhostKG SQLite DB. After a crash: <code>restore_db_backup(last_completed)</code> rolls back, then the loop resumes from <code>last_completed + 1</code>. CSV rows for completed days are never re-written.</p>
-  </section>
+KNOWLEDGE GRAPH  (GhostKG library, KG conditions only)
+  AgentManager        owns one SQLite DB, manages per-agent graphs
+  FSRS decay          memory strength decays over simulated time
+  Triplet             (subject, predicate, object, dimension, round)
+</div>
 
-  <!-- CONDITIONS -->
-  <section id="conditions">
-    <h2>The 4 Conditions</h2>
-    <table>
-      <thead>
-        <tr><th>Condition</th><th>Memory</th><th>KG Dimensions</th><th>What agents remember</th></tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td><span class="condition-name">no_kg</span></td>
-          <td><code>NullMemory</code></td>
-          <td>none</td>
-          <td>Nothing. Stateless agents. LODAS baseline.</td>
-        </tr>
-        <tr>
-          <td><span class="condition-name">general_only</span></td>
-          <td><code>GhostMemory</code></td>
-          <td>general</td>
-          <td>Topic facts: policies, statistics, events heard in prior exchanges.</td>
-        </tr>
-        <tr>
-          <td><span class="condition-name">tom_only</span></td>
-          <td><code>GhostMemory</code></td>
-          <td>tom</td>
-          <td>What the agent believes about other agents' views (Theory of Mind).</td>
-        </tr>
-        <tr>
-          <td><span class="condition-name">full_kg</span></td>
-          <td><code>GhostMemory</code></td>
-          <td>general + tom + beliefs</td>
-          <td>Topic facts, others' views, and the agent's own stated positions over time.</td>
-        </tr>
-      </tbody>
-    </table>
-    <p>All four conditions use the same agents, topic, RNG seed, and number of days. The only variable is the memory implementation.</p>
-  </section>
+<h3>Module responsibilities</h3>
+<table>
+  <tr><th>Module</th><th>Owns</th><th>Never touches</th></tr>
+  <tr><td><code>simulation.py</code></td><td>Main loop, memory condition routing, checkpoint lifecycle</td><td>Prompt construction, LLM calls</td></tr>
+  <tr><td><code>exchange.py</code></td><td>Turn-by-turn dialogue, calling <code>memory.absorb()</code></td><td>Which memory condition is active</td></tr>
+  <tr><td><code>annotator.py</code></td><td>Stance annotation, Likert clamp</td><td>Knowledge graph, dialogue history</td></tr>
+  <tr><td><code>memory.py</code></td><td>AgentMemory interface, NullMemory, GhostMemory</td><td>LLM calls directly (delegates to triplets.py)</td></tr>
+  <tr><td><code>tracker.py</code></td><td>CSV and JSONL writes</td><td>Simulation logic</td></tr>
+  <tr><td><code>checkpoint.py</code></td><td>Crash-safe writes, DB snapshots, resume</td><td>Stance computation</td></tr>
+</table>
 
-  <!-- CONFIG -->
-  <section id="config">
-    <h2>Configuration</h2>
-    <p>All parameters are environment variables. Set them in <code>.env</code> or prefix the run command. <code>load_config()</code> reads, validates, and smoke-tests prompts before the first LLM call — no silent failures mid-run.</p>
-    <table>
-      <thead><tr><th>Variable</th><th>Default</th><th>Description</th></tr></thead>
-      <tbody>
-        <tr><td>TOPIC</td><td>immigration policy</td><td>Slug or full label. Resolved to <code>topics/{slug}.py</code>.</td></tr>
-        <tr><td>N_AGENTS</td><td>12</td><td>Must not exceed personas defined in the topic file. 140 minimum for publication.</td></tr>
-        <tr><td>N_ITERATIONS</td><td>50</td><td>Number of simulated days.</td></tr>
-        <tr><td>MIN_TURNS</td><td>2</td><td>Minimum dialogue turns per exchange.</td></tr>
-        <tr><td>MAX_TURNS</td><td>5</td><td>Maximum dialogue turns per exchange.</td></tr>
-        <tr><td>RANDOM_SEED</td><td>42</td><td>Seeds agent shuffle and partner selection.</td></tr>
-        <tr><td>MEMORY_CONDITION</td><td>no_kg</td><td>One of: <code>no_kg</code>, <code>general_only</code>, <code>tom_only</code>, <code>full_kg</code>.</td></tr>
-        <tr><td>CLOCK_ADVANCE_HOURS</td><td>24</td><td>Simulated hours per iteration. Controls FSRS decay rate.</td></tr>
-        <tr><td>LLM_PROVIDER</td><td>ollama</td><td>One of: <code>ollama</code>, <code>anthropic</code>, <code>openai</code>, <code>groq</code>, <code>vllm</code>.</td></tr>
-        <tr><td>LLM_MODEL</td><td>llama3.2</td><td>Model identifier for the chosen provider.</td></tr>
-        <tr><td>LLM_BASE_URL</td><td>http://localhost:8000/v1</td><td>Base URL for vLLM or OpenAI-compatible endpoint.</td></tr>
-        <tr><td>LLM_MAX_TOKENS</td><td>512</td><td>Max tokens per LLM response.</td></tr>
-        <tr><td>LLM_TEMPERATURE</td><td>0.7</td><td>Sampling temperature. Range (0, 2].</td></tr>
-        <tr><td>LLM_MAX_CONCURRENCY</td><td>8</td><td>Max parallel LLM requests in flight.</td></tr>
-        <tr><td>PARALLEL_EXCHANGE_JOBS</td><td>1</td><td>Set &gt;1 to activate vLLM parallel scheduler.</td></tr>
-        <tr><td>OUTPUT_DIR</td><td>data/run_01</td><td>Where results.csv, checkpoint.json, simulation.db are written.</td></tr>
-        <tr><td>DB_PATH</td><td>data/run_01/simulation.db</td><td>GhostKG SQLite database path.</td></tr>
-      </tbody>
-    </table>
-  </section>
+<h3>Null Object Pattern</h3>
+<p><code>exchange.py</code> always calls <code>memory.absorb()</code> and <code>memory.get_context()</code> without an <code>if</code> statement. <code>NullMemory</code> implements both as no-ops. <code>GhostMemory</code> does the real work. The condition is resolved once at startup in <code>simulation.py::_build_memory()</code>. Zero conditionals in the hot path.</p>
+</section>
 
-  <!-- RUNNING -->
-  <section id="running">
-    <h2>Running</h2>
+<!-- MECHANICS -->
+<section id="mechanics">
+<h2>How it Works</h2>
 
-    <h3>Single condition</h3>
-<pre><code>PYTHONDONTWRITEBYTECODE=1 \
-TOPIC=immigration \
-MEMORY_CONDITION=no_kg \
-OUTPUT_DIR=data/immigration/no_kg \
-DB_PATH=data/immigration/no_kg/simulation.db \
-N_AGENTS=140 \
-N_ITERATIONS=10 \
-.venv/bin/python src/simulation.py</code></pre>
+<h3>One simulation day</h3>
+<ol>
+  <li>All agents are shuffled into a random order.</li>
+  <li>Each agent, in that order, initiates one multi-turn exchange with a randomly chosen partner.</li>
+  <li>The exchange runs 2-5 turns (configurable). Both agents speak each turn.</li>
+  <li>After each turn, KG-enabled agents extract triplets from the listener's utterances and absorb them into the listener's knowledge graph.</li>
+  <li>After the exchange, the annotator reads each agent's own utterances and assigns a Likert stance score (-2 to +2). Output is clamped to +-1 from prior stance.</li>
+  <li>Stances and the full transcript are logged to CSV and JSONL.</li>
+  <li>After all agents have gone, one checkpoint is written.</li>
+</ol>
 
-    <h3>Full ablation — all 4 conditions</h3>
-<pre><code>bash run_ablation.sh immigration 10</code></pre>
-    <p>Runs all four conditions sequentially, then generates plots into <code>data/immigration/plots/</code>.</p>
+<h3>Likert stance and the +-1 clamp</h3>
+<p>The 5-point Likert scale maps to integer scores: FAR_LEFT = -2, LEFT = -1, CENTER = 0, RIGHT = 1, FAR_RIGHT = 2.</p>
+<p>The annotator LLM can assign any score, but the simulation clamps it:</p>
+<pre>clamped_score = max(previous.score - 1, min(previous.score + 1, annotated.score))</pre>
+<p>Agents move at most one step per day. This prevents teleportation from FAR_LEFT to FAR_RIGHT in a single exchange and matches the LODAS baseline assumption.</p>
 
-    <h3>Multiple seeds</h3>
-<pre><code>bash run_ablation.sh immigration 10 42,43,44</code></pre>
+<h3>Flow of control</h3>
+<pre>python src/simulation.py
+    |
+    +-- load_config()                       # config.py: reads .env, validates all fields
+    |   +-- _validate_config()
+    |   +-- _smoke_test_prompts()
+    |
+    +-- create_personas()                   # personas.py -> list[AgentPersona]
+    |
+    +-- load_checkpoint()                   # checkpoint.py
+    |   +-- if crash found:
+    |       +-- restore_db_backup()
+    |       +-- rebuild_stances() from CSV
+    |
+    +-- _init_ghostkg()                     # KG conditions only
+    |   +-- AgentManager(db_path)
+    |       +-- create_agent() x N
+    |
+    +-- _build_memory()                     # only place that reads memory_condition
+    |   +-- NullMemory()         &lt;-- no_kg
+    |   +-- GhostMemory(manager) &lt;-- general_only / tom_only / full_kg
+    |
+    +-- for day in 1..N_ITERATIONS:
+        +-- backup_db(day-1)                # snapshot SQLite before touching it
+        +-- clock += CLOCK_ADVANCE_HOURS
+        |
+        +-- for initiator in shuffle(personas):
+            +-- run_exchange(initiator, partner, day=day)   # exchange.py
+            |   +-- for turn in 1..n_turns:
+            |       +-- build prompts (persona + stance + KG context)
+            |       +-- llm_call() x2 in parallel          # llm.py
+            |       +-- memory.absorb(listener, round=day)  # memory.py
+            |           +-- [GhostMemory] extract_triplets_batch() -> absorb_content()
+            |
+            +-- annotate_many([initiator, partner])         # annotator.py
+            |   +-- clamp: max(prev-1, min(prev+1, new))
+            |
+            +-- current_stances[a] = stance_a
+            +-- current_stances[b] = stance_b
+            +-- tracker.log(day, ...)                       # results.csv + exchanges.jsonl
 
-    <h3>Resume after crash</h3>
-    <p>Re-run the exact same command. <code>load_checkpoint()</code> reads <code>checkpoint.json</code>, <code>restore_db_backup()</code> rolls the GhostKG DB back to the last completed day, and the loop resumes from <code>last_completed + 1</code>.</p>
+        +-- write_checkpoint(day)           # once per day, after all agents</pre>
 
-    <h3>Suppress __pycache__</h3>
-    <p><code>run_ablation.sh</code> sets <code>PYTHONDONTWRITEBYTECODE=1</code> as a process env var before Python starts. For direct runs: prefix with the env var or use <code>python -B</code>. Setting it via <code>python-dotenv</code> is too late — the interpreter must see it before it starts.</p>
+<h3>Knowledge graph triplets</h3>
+<p>Each triplet has five fields: <code>(subject, predicate, object, dimension, round)</code>. The <code>dimension</code> field is one of <code>general</code>, <code>tom</code>, or <code>beliefs</code>. The <code>round</code> field is the current day number, used for recency filtering when building context.</p>
+<p>GhostKG applies FSRS (spaced-repetition) decay to triplet strength over simulated time. Each KG condition filters which dimensions are stored and retrieved.</p>
+</section>
 
-    <h3>Generate plots only</h3>
-<pre><code>PYTHONDONTWRITEBYTECODE=1 .venv/bin/python analysis/plots.py \
+<!-- CONDITIONS -->
+<section id="conditions">
+<h2>4 Conditions</h2>
+
+<table>
+  <tr><th>Condition</th><th>Env value</th><th>KG dimensions active</th><th>Context injected</th></tr>
+  <tr>
+    <td>No KG</td>
+    <td><code>no_kg</code></td>
+    <td>none</td>
+    <td>Nothing. Pure LODAS replication. Lowest latency.</td>
+  </tr>
+  <tr>
+    <td>General KG</td>
+    <td><code>general_only</code></td>
+    <td><code>general</code></td>
+    <td>Topic facts the agent has heard. Who argued what policy.</td>
+  </tr>
+  <tr>
+    <td>ToM KG</td>
+    <td><code>tom_only</code></td>
+    <td><code>tom</code></td>
+    <td>Theory-of-Mind inferences. What the agent believes the partner believes.</td>
+  </tr>
+  <tr>
+    <td>Full KG</td>
+    <td><code>full_kg</code></td>
+    <td><code>general + tom + beliefs</code></td>
+    <td>All three dimensions, retrieved by FSRS-weighted recency.</td>
+  </tr>
+</table>
+
+<p>The condition affects only what gets extracted and retrieved. Exchange mechanics, annotation, logging, and crash recovery are identical across all four conditions.</p>
+</section>
+
+<!-- DATA STORAGE -->
+<section id="data-storage">
+<h2>Data Storage</h2>
+
+<p>All output files land in <code>OUTPUT_DIR</code> (set in <code>.env</code>, default <code>data/run_01</code>). This directory is gitignored.</p>
+
+<h3>results.csv</h3>
+<p>One row per exchange. A 140-agent 10-day run produces 1400 rows.</p>
+<table>
+  <tr><th>Column</th><th>Type</th><th>Description</th></tr>
+  <tr><td><code>iteration</code></td><td>int</td><td>Simulation day (1-indexed)</td></tr>
+  <tr><td><code>run_id</code></td><td>str</td><td>UUID assigned at startup, stable across resume</td></tr>
+  <tr><td><code>memory_condition</code></td><td>str</td><td><code>no_kg | general_only | tom_only | full_kg</code></td></tr>
+  <tr><td><code>topic</code></td><td>str</td><td>Topic label from <code>TOPIC_LABEL</code></td></tr>
+  <tr><td><code>agent_a_id</code></td><td>str</td><td>Initiating agent ID</td></tr>
+  <tr><td><code>agent_a_stance_before_label</code></td><td>str</td><td>FAR_LEFT / LEFT / CENTER / RIGHT / FAR_RIGHT</td></tr>
+  <tr><td><code>agent_a_stance_before_score</code></td><td>int</td><td>-2 to +2</td></tr>
+  <tr><td><code>agent_a_stance_after_label</code></td><td>str</td><td>After exchange, after clamp</td></tr>
+  <tr><td><code>agent_a_stance_after_score</code></td><td>int</td><td>-2 to +2</td></tr>
+  <tr><td><code>agent_b_*</code></td><td></td><td>Same fields for the responding agent</td></tr>
+  <tr><td><code>n_turns</code></td><td>int</td><td>Number of turns in the exchange</td></tr>
+  <tr><td><code>sim_clock</code></td><td>ISO str</td><td>Simulated clock at exchange time</td></tr>
+</table>
+
+<h3>exchanges.jsonl</h3>
+<p>One JSON object per exchange. Contains the full transcript (all turns), both agent IDs, stances before and after, and the raw annotator output. Use for qualitative analysis and turn-level review.</p>
+
+<h3>simulation.db</h3>
+<p>SQLite database owned by GhostKG's <code>AgentManager</code>. Present only for KG conditions. Stores all triplets with FSRS metadata (stability, difficulty, last review date). One row per triplet per agent.</p>
+<p>Backed up before each day starts: <code>simulation_iter_N.db.bak</code>. On crash, the backup is restored on resume to roll the KG back to a consistent state.</p>
+
+<h3>checkpoint.json</h3>
+<p>Written once per day, after all agents have exchanged and all rows have been logged.</p>
+<pre>{"last_completed_iteration": 3, "memory_condition": "no_kg", "run_id": "abc-123", "topic": "immigration policy"}</pre>
+<p>On startup, if this file exists, the simulation reads it, restores the DB backup, rebuilds stances from CSV rows, and resumes from day N+1.</p>
+
+<h3>File layout</h3>
+<pre>OUTPUT_DIR/
+    results.csv
+    exchanges.jsonl
+    checkpoint.json
+    simulation.db               (KG conditions only)
+    simulation_iter_0.db.bak    (empty DB before day 1)
+    simulation_iter_1.db.bak
+    ...
+    simulation_iter_N.db.bak</pre>
+</section>
+
+<!-- CONFIGURATION -->
+<section id="configuration">
+<h2>Configuration</h2>
+
+<p>All settings live in <code>.env</code>. Copy <code>.env.example</code> to <code>.env</code> and edit. No config file is tracked by git.</p>
+
+<h3>LLM settings</h3>
+<table>
+  <tr><th>Variable</th><th>Default</th><th>Description</th></tr>
+  <tr><td><code>LLM_PROVIDER</code></td><td><code>ollama</code></td><td><code>ollama | anthropic | openai | groq | vllm</code></td></tr>
+  <tr><td><code>LLM_MODEL</code></td><td><code>llama3.2</code></td><td>Model name for the chosen provider</td></tr>
+  <tr><td><code>LLM_BASE_URL</code></td><td>(provider default)</td><td>Override endpoint. Required for vLLM.</td></tr>
+  <tr><td><code>LLM_MAX_CONCURRENCY</code></td><td><code>8</code></td><td>Max simultaneous LLM calls per turn</td></tr>
+  <tr><td><code>PARALLEL_EXCHANGE_JOBS</code></td><td><code>1</code></td><td>Disjoint agent pairs per day (set &gt;1 for vLLM)</td></tr>
+  <tr><td><code>LLM_MAX_RETRIES</code></td><td><code>3</code></td><td>Retries on parse failure</td></tr>
+  <tr><td><code>ANNOTATOR_MODEL</code></td><td>(same as LLM_MODEL)</td><td>Override the annotation model</td></tr>
+</table>
+
+<h3>Simulation settings</h3>
+<table>
+  <tr><th>Variable</th><th>Default</th><th>Description</th></tr>
+  <tr><td><code>TOPIC</code></td><td><code>immigration policy</code></td><td>Must match a slug in <code>topics/</code></td></tr>
+  <tr><td><code>N_AGENTS</code></td><td><code>140</code></td><td>Population size (must match PERSONAS count)</td></tr>
+  <tr><td><code>N_ITERATIONS</code></td><td><code>10</code></td><td>Number of simulation days</td></tr>
+  <tr><td><code>MEMORY_CONDITION</code></td><td><code>no_kg</code></td><td>One of the 4 conditions</td></tr>
+  <tr><td><code>MIN_TURNS</code></td><td><code>2</code></td><td>Minimum turns per exchange</td></tr>
+  <tr><td><code>MAX_TURNS</code></td><td><code>5</code></td><td>Maximum turns per exchange</td></tr>
+  <tr><td><code>CLOCK_ADVANCE_HOURS</code></td><td><code>24</code></td><td>Simulated hours per day</td></tr>
+  <tr><td><code>RANDOM_SEED</code></td><td><code>42</code></td><td>Seed for agent shuffle and partner selection</td></tr>
+</table>
+
+<h3>Output settings</h3>
+<table>
+  <tr><th>Variable</th><th>Default</th><th>Description</th></tr>
+  <tr><td><code>OUTPUT_DIR</code></td><td><code>data/run_01</code></td><td>All output files go here</td></tr>
+  <tr><td><code>DB_PATH</code></td><td><code>data/run_01/simulation.db</code></td><td>GhostKG SQLite path</td></tr>
+  <tr><td><code>LOG_LEVEL</code></td><td><code>INFO</code></td><td><code>DEBUG | INFO | WARNING</code></td></tr>
+</table>
+
+<h3>API keys</h3>
+<pre>ANTHROPIC_API_KEY=sk-ant-...
+OPENAI_API_KEY=sk-...
+GROQ_API_KEY=gsk_...</pre>
+<p>Only set the key for the provider you are using.</p>
+</section>
+
+<!-- RUNNING -->
+<section id="running">
+<h2>Running</h2>
+
+<h3>Install</h3>
+<pre>git clone https://github.com/pranavdeepak13/Agentic-Stance.git
+cd Agentic-Stance
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+cp .env.example .env</pre>
+
+<h3>Quick test</h3>
+<pre>PYTHONDONTWRITEBYTECODE=1 N_AGENTS=4 N_ITERATIONS=3 \
+  OUTPUT_DIR=data/test DB_PATH=data/test/sim.db \
+  .venv/bin/python src/simulation.py</pre>
+
+<div class="note"><code>PYTHONDONTWRITEBYTECODE=1</code> must be set as a shell prefix, not in <code>.env</code>. Python reads it before dotenv loads. Without it, <code>__pycache__</code> directories appear in every module folder.</div>
+
+<h3>Single condition</h3>
+<pre>PYTHONDONTWRITEBYTECODE=1 \
+  MEMORY_CONDITION=no_kg \
+  OUTPUT_DIR=data/immigration/no_kg \
+  DB_PATH=data/immigration/no_kg/simulation.db \
+  N_AGENTS=140 N_ITERATIONS=10 \
+  .venv/bin/python src/simulation.py</pre>
+
+<h3>Full ablation (all 4 conditions)</h3>
+<pre>bash run_ablation.sh immigration 10</pre>
+<p>Runs all four conditions sequentially and generates comparison plots on completion. Pass a comma-separated seed list for multiple seeds:</p>
+<pre>bash run_ablation.sh immigration 10 42,43,44</pre>
+
+<h3>Analysis</h3>
+<pre>PYTHONDONTWRITEBYTECODE=1 .venv/bin/python analysis/plots.py \
   --data-dir data/immigration \
-  --output-dir data/immigration/plots</code></pre>
-  </section>
+  --output-dir data/immigration/plots</pre>
+<p>Single condition only:</p>
+<pre>PYTHONDONTWRITEBYTECODE=1 .venv/bin/python analysis/plots.py \
+  --data-dir data/immigration --condition no_kg \
+  --output-dir data/immigration/plots</pre>
 
-  <!-- TOPICS -->
-  <section id="topics">
-    <h2>Topics</h2>
-    <p>A topic is a Python file in <code>topics/</code> that defines <code>TOPIC_LABEL</code> and <code>PERSONAS</code>. No other file needs to change when you add one.</p>
+<h3>Crash recovery</h3>
+<p>Re-run the same command. The simulation reads <code>checkpoint.json</code>, restores the DB backup, rebuilds in-memory stances from <code>results.csv</code>, and resumes from the next day. No duplicate rows are written.</p>
 
-    <h3>File structure</h3>
-<pre><code>TOPIC_NAME  = "climate"
-TOPIC_LABEL = "climate change policy"
+<h3>vLLM</h3>
+<pre># Terminal 1: start server
+python -m vllm.entrypoints.openai.api_server \
+  --model meta-llama/Llama-3.1-8B-Instruct \
+  --port 8000
 
+# Terminal 2: run simulation
+LLM_PROVIDER=vllm \
+LLM_MODEL=meta-llama/Llama-3.1-8B-Instruct \
+LLM_BASE_URL=http://127.0.0.1:8000/v1 \
+LLM_MAX_CONCURRENCY=16 \
+PARALLEL_EXCHANGE_JOBS=4 \
+PYTHONDONTWRITEBYTECODE=1 .venv/bin/python src/simulation.py</pre>
+
+<p>vLLM uses PagedAttention (non-contiguous KV cache paging, eliminates padding waste) and continuous batching (new requests fill GPU slots as old ones finish, no batch-level waiting). The <code>PARALLEL_EXCHANGE_JOBS</code> setting partitions agents into disjoint pairs and dispatches them concurrently within a day, fully utilizing the server.</p>
+</section>
+
+<!-- TOPICS -->
+<section id="topics">
+<h2>Topics</h2>
+
+<p>Each topic is a Python file in <code>topics/</code>. Set <code>TOPIC={slug}</code> in <code>.env</code> to select it.</p>
+
+<pre>topics/immigration.py
+
+TOPIC_LABEL = "immigration policy"
 PERSONAS = [
     {
-        "agent_id":            "agent_001",
-        "name":                "Jordan Wells",
-        "leaning":             PoliticalLeaning.FAR_LEFT,
-        "age":                 28,
-        "occupation":          "climate researcher",
+        "agent_id": "rosie_morgan",
+        "name": "Rosie Morgan",
+        "age": 34,
+        "occupation": "Nurse",
+        "initial_stance": "center",
         "persona_description": "...",
-        "initial_stance":      LikertStance.STRONGLY_AGAINST,
     },
-    # ...
-]</code></pre>
+    # 140 total
+]</pre>
 
-    <h3>Stance convention</h3>
-    <p>Decide before writing: what does "In Favor" mean for this topic? For immigration: In Favor = supports restrictive policy. For climate: In Favor = supports strong regulation. Document it in the file header — the prompts inject the label literally.</p>
+<h3>Agent distribution (140 agents)</h3>
+<table>
+  <tr><th>Stance</th><th>Score</th><th>Count</th><th>Share</th></tr>
+  <tr><td>FAR_LEFT</td><td>-2</td><td>14</td><td>10%</td></tr>
+  <tr><td>LEFT</td><td>-1</td><td>28</td><td>20%</td></tr>
+  <tr><td>CENTER</td><td>0</td><td>56</td><td>40%</td></tr>
+  <tr><td>RIGHT</td><td>+1</td><td>28</td><td>20%</td></tr>
+  <tr><td>FAR_RIGHT</td><td>+2</td><td>14</td><td>10%</td></tr>
+</table>
 
-    <h3>Recommended distribution (140 agents)</h3>
-    <table>
-      <thead><tr><th>Leaning</th><th>Count</th><th>Typical initial stance</th></tr></thead>
-      <tbody>
-        <tr><td>FAR_LEFT</td><td>14 (10%)</td><td>STRONGLY_AGAINST</td></tr>
-        <tr><td>LEFT</td><td>28 (20%)</td><td>AGAINST</td></tr>
-        <tr><td>CENTER</td><td>56 (40%)</td><td>NEUTRAL</td></tr>
-        <tr><td>RIGHT</td><td>28 (20%)</td><td>IN_FAVOR</td></tr>
-        <tr><td>FAR_RIGHT</td><td>14 (10%)</td><td>STRONGLY_IN_FAVOR</td></tr>
-      </tbody>
+<h3>Add a topic</h3>
+<p>Create <code>topics/{slug}.py</code> defining <code>TOPIC_LABEL: str</code> and <code>PERSONAS: list[dict]</code>. Set <code>TOPIC={slug}</code> in <code>.env</code>. Nothing else changes.</p>
+<pre>PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -B scripts/gen_immigration_personas.py</pre>
+<p>Use <code>scripts/gen_immigration_personas.py</code> as the generator template.</p>
+</section>
+
+<!-- AGENTIC TEAM -->
+<section id="agents">
+<h2>Agentic Team</h2>
+
+<p>Five specialized Claude Code agents live in <code>.claude/agents/</code>. They are local-only (gitignored).</p>
+
+<table>
+  <tr><th>Agent</th><th>When to use</th><th>Model</th></tr>
+  <tr><td><code>docs-writer</code></td><td>Generate or update <code>docs/index.html</code>. Pass a scope: "full site", "architecture section".</td><td>Sonnet</td></tr>
+  <tr><td><code>code-reviewer</code></td><td>Pre-commit gate. Checks Likert clamp, day loop, 4-tuple Triplets, Karpathy rules.</td><td>Sonnet</td></tr>
+  <tr><td><code>sim-runner</code></td><td>Run one condition. Verifies CSV row count = n_agents x n_days.</td><td>Haiku</td></tr>
+  <tr><td><code>result-analyst</code></td><td>Compute EPJ metrics from a results.csv: entropy delta, acceptance slope, effective clusters.</td><td>Haiku</td></tr>
+  <tr><td><code>topic-builder</code></td><td>Generate a new <code>topics/{name}.py</code> file. Validates import and PERSONAS count.</td><td>Sonnet</td></tr>
+</table>
+
+<p>Agents are not the right tool for: editing source files (edit them directly), running full ablations (use <code>run_ablation.sh</code>), checking git history.</p>
+</section>
+
+<!-- RESULTS -->
+<section id="results">
+<h2>Results</h2>
+
+<p>Baseline run: no_kg condition, 140 agents, 10 days, seed 42. This run replicates the LODAS baseline at scale before the KG ablations.</p>
+
+<table>
+  <tr><th>Metric</th><th>Value</th><th>Notes</th></tr>
+  <tr><td>Initial entropy H(0)</td><td>1.52 bits</td><td>Truncated Gaussian starting distribution</td></tr>
+  <tr><td>Final entropy H(10)</td><td>TBD</td><td>Pending baseline run completion</td></tr>
+  <tr><td>Mean acceptance rate</td><td>TBD</td><td>Proportion of exchanges resulting in stance shift</td></tr>
+  <tr><td>P(accept | same stance)</td><td>TBD</td><td>Echo chamber signal</td></tr>
+  <tr><td>P(accept | opposite stance)</td><td>TBD</td><td>Cross-cutting exchange signal</td></tr>
+</table>
+
+<p>Full 4-condition ablation results will be added here after all runs complete.</p>
+</section>
+
+<!-- ==================== API REFERENCE ==================== -->
+
+<h2 style="margin-top:3.5rem;font-size:1rem;letter-spacing:.05em;padding-top:1rem">API Reference</h2>
+
+<!-- config.py -->
+<section id="api-config">
+<h2>config.py</h2>
+<p>All data types for the simulation. No LLM calls, no I/O. Reads <code>.env</code> via python-dotenv.</p>
+
+<div class="dc-card">
+  <div class="dc-header">@dataclass &nbsp; SimulationConfig</div>
+  <div class="dc-body">
+    <p>Holds every setting from <code>.env</code>. Constructed by <code>load_config()</code>. Read-only after construction.</p>
+    <table class="field-table">
+      <tr><th>Field</th><th>Type</th><th>Description</th></tr>
+      <tr><td>llm_provider</td><td>str</td><td>Active LLM provider</td></tr>
+      <tr><td>llm_model</td><td>str</td><td>Model name</td></tr>
+      <tr><td>llm_base_url</td><td>str | None</td><td>Override endpoint (vLLM)</td></tr>
+      <tr><td>llm_max_concurrency</td><td>int</td><td>Simultaneous LLM calls</td></tr>
+      <tr><td>parallel_exchange_jobs</td><td>int</td><td>Disjoint pairs per day</td></tr>
+      <tr><td>topic</td><td>str</td><td>Topic slug</td></tr>
+      <tr><td>n_agents</td><td>int</td><td>Population size</td></tr>
+      <tr><td>n_iterations</td><td>int</td><td>Number of days</td></tr>
+      <tr><td>memory_condition</td><td>str</td><td>One of the 4 conditions</td></tr>
+      <tr><td>min_turns / max_turns</td><td>int</td><td>Exchange length range</td></tr>
+      <tr><td>clock_advance_hours</td><td>int</td><td>Simulated hours per day</td></tr>
+      <tr><td>random_seed</td><td>int</td><td>RNG seed</td></tr>
+      <tr><td>output_dir</td><td>Path</td><td>All output files go here</td></tr>
+      <tr><td>db_path</td><td>Path</td><td>GhostKG SQLite path</td></tr>
     </table>
+  </div>
+</div>
 
-    <p>Use <code>scripts/gen_immigration_personas.py</code> as a template to generate new topic files programmatically.</p>
-  </section>
+<div class="dc-card">
+  <div class="dc-header">enum &nbsp; LikertStance</div>
+  <div class="dc-body">
+    <p>Five-member enum. Each member has a <code>.score</code> (int, -2 to +2) and a <code>.label</code> (str).</p>
+    <pre>LikertStance.FAR_LEFT   score=-2
+LikertStance.LEFT       score=-1
+LikertStance.CENTER     score=0
+LikertStance.RIGHT      score=1
+LikertStance.FAR_RIGHT  score=2</pre>
 
-  <!-- AGENTS -->
-  <section id="agents">
-    <h2>Agentic Team</h2>
-    <p>Five subagents live in <code>.claude/agents/</code>. Each has its own context window and no memory of this conversation. Give them full context in the prompt — they start cold.</p>
-    <table>
-      <thead><tr><th>Agent</th><th>Model</th><th>Use when</th><th>Returns</th></tr></thead>
-      <tbody>
-        <tr><td>code-reviewer</td><td>sonnet</td><td>Before committing any code change</td><td><code>[BLOCKER/WARNING/NOTE] file:line — description</code>. Cannot fix — reports only.</td></tr>
-        <tr><td>sim-runner</td><td>haiku</td><td>Run one condition: topic, condition, n_days, n_agents, seed</td><td>COMPLETED/FAILED, row count, errors.</td></tr>
-        <tr><td>result-analyst</td><td>haiku</td><td>Get metric numbers without generating plots</td><td>Table: entropy delta, effective clusters, acceptance slope per condition.</td></tr>
-        <tr><td>topic-builder</td><td>sonnet</td><td>Generate a new topic file with N personas</td><td><code>topics/{name}.py</code> written and import-validated.</td></tr>
-        <tr><td>email-reader</td><td>haiku</td><td>Parse a Rossetti email thread into action items</td><td>Code Changes (REQUIRED/SUGGESTED), Experiments, Open Questions, Next Steps.</td></tr>
-        <tr><td>docs-writer</td><td>sonnet</td><td>Update this documentation site</td><td>Rewrites <code>docs/index.html</code> or <code>docs/api.html</code>, validates HTML.</td></tr>
-      </tbody>
+    <div class="fn-card">
+      <div class="fn-header"><span class="fn-name">LikertStance.from_score</span><span class="fn-sig">(score: int) -&gt; LikertStance</span> <span class="tag">classmethod</span></div>
+      <div class="fn-body">
+        <p>Returns the enum member with <code>.score == score</code>. Raises <code>ValueError</code> for invalid scores.</p>
+        <pre>LikertStance.from_score(-1)  # LikertStance.LEFT</pre>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="fn-card">
+  <div class="fn-header"><span class="fn-name">load_config</span><span class="fn-sig">() -&gt; SimulationConfig</span></div>
+  <div class="fn-body">
+    <p>Reads <code>.env</code> from the working directory, validates all required fields, smoke-tests every prompt template. Raises <code>ConfigError</code> if validation fails.</p>
+  </div>
+</div>
+
+<div class="fn-card">
+  <div class="fn-header"><span class="fn-name">parse_likert</span><span class="fn-sig">(raw: str) -&gt; LikertStance</span></div>
+  <div class="fn-body">
+    <p>Parses a string containing an integer (-2 to +2) into a <code>LikertStance</code>. Raises <code>AnnotationError</code> if the string contains no valid score.</p>
+  </div>
+</div>
+</section>
+
+<!-- personas.py -->
+<section id="api-personas">
+<h2>personas.py</h2>
+<p>Loads the topic file and builds agent objects. Imports the topic module dynamically using the <code>TOPIC</code> config value.</p>
+
+<div class="dc-card">
+  <div class="dc-header">@dataclass &nbsp; AgentPersona</div>
+  <div class="dc-body">
+    <table class="field-table">
+      <tr><th>Field</th><th>Type</th><th>Description</th></tr>
+      <tr><td>agent_id</td><td>str</td><td>Unique identifier (snake_case)</td></tr>
+      <tr><td>name</td><td>str</td><td>Display name</td></tr>
+      <tr><td>age</td><td>int</td><td>Agent age</td></tr>
+      <tr><td>occupation</td><td>str</td><td>Agent occupation</td></tr>
+      <tr><td>initial_stance</td><td>str</td><td>far_left | left | center | right | far_right</td></tr>
+      <tr><td>persona_description</td><td>str</td><td>Free-text paragraph injected into system prompt</td></tr>
     </table>
+  </div>
+</div>
 
-    <h3>Standard workflows</h3>
-    <p><strong>Before committing:</strong> code-reviewer → fix blockers → commit.</p>
-    <p><strong>New experiment:</strong> topic-builder (if new topic) → sim-runner ×4 in parallel → result-analyst → <code>python analysis/plots.py</code>.</p>
-    <p><strong>Processing Rossetti email:</strong> email-reader → add REQUIRED changes to PLAN.md → implement → code-reviewer → commit.</p>
-  </section>
+<div class="fn-card">
+  <div class="fn-header"><span class="fn-name">create_personas</span><span class="fn-sig">(config: SimulationConfig) -&gt; list[AgentPersona]</span></div>
+  <div class="fn-body">
+    <p>Loads <code>topics/{config.topic}.py</code>, reads <code>PERSONAS</code>, returns a list of <code>AgentPersona</code> objects. Validates count matches <code>config.n_agents</code>. Raises <code>ConfigError</code> on mismatch.</p>
+  </div>
+</div>
+</section>
 
-  <!-- RESULTS -->
-  <section id="results">
-    <h2>First Results</h2>
-    <p>12 agents, immigration, 50 iterations, llama3.2. These use the pre-Phase-1 random-pair loop. Re-run needed with 140 agents and day-based loop.</p>
-    <table>
-      <thead>
-        <tr><th>Condition</th><th>Entropy Δ</th><th>Acceptance P(A|Δ=0)</th><th>Key signal</th></tr>
-      </thead>
-      <tbody>
-        <tr><td class="condition-name">no_kg</td><td>+0.85</td><td>+0.21 (sycophantic)</td><td>Baseline. Agents shift toward speaker 21% more when stances already match.</td></tr>
-        <tr><td class="condition-name">general_only</td><td>+0.72</td><td>−0.175 (reversed)</td><td>Factual memory inverts the bias. Agents resist when they recall contradicting facts.</td></tr>
-        <tr><td class="condition-name">tom_only</td><td>+1.19</td><td>+0.31 (amplified)</td><td>Highest divergence. ToM tracking amplifies friction — agents push back harder.</td></tr>
-        <tr><td class="condition-name">full_kg</td><td>+0.38</td><td>+0.08 (near-zero)</td><td>Most stable. All three KG dimensions together dampen sycophancy most.</td></tr>
-      </tbody>
+<!-- llm.py -->
+<section id="api-llm">
+<h2>llm.py</h2>
+<p>Async LLM dispatch. All LLM calls go through this module. No prompt construction happens here.</p>
+
+<div class="dc-card">
+  <div class="dc-header">@dataclass &nbsp; ExchangeMessage</div>
+  <div class="dc-body">
+    <table class="field-table">
+      <tr><th>Field</th><th>Type</th><th>Description</th></tr>
+      <tr><td>role</td><td>str</td><td>"user" or "assistant"</td></tr>
+      <tr><td>content</td><td>str</td><td>Message text</td></tr>
     </table>
-    <div class="note">Patricia (FAR_RIGHT, +2 initial) shifted to −2 in 2 exchanges under <code>tom_only</code>. This motivated the ±1 Likert clamp in Phase 1.</div>
+  </div>
+</div>
 
-    <h3>Planned next</h3>
-    <ul>
-      <li>140-agent no_kg baseline — verify Phase 1 code (currently running)</li>
-      <li>Full ablation: 4 conditions, 140 agents, 30+ days</li>
-      <li>Climate topic: moderately divisive, same pipeline</li>
-      <li>Ship of Theseus: neutral control, random initial stances</li>
-      <li>KG characterization: triplet_count_over_time, top_predicates, agent_kg_overlap</li>
-      <li>Annotator context experiment: 1–3 prior exchange steps as annotator input</li>
-    </ul>
-  </section>
+<div class="fn-card">
+  <div class="fn-header"><span class="fn-name">llm_call_many</span><span class="fn-sig">(messages_list: list[list[ExchangeMessage]], config: SimulationConfig, system: str = "") -&gt; list[str]</span> <span class="async-badge">async</span></div>
+  <div class="fn-body">
+    <p>Dispatches multiple LLM calls concurrently (up to <code>config.llm_max_concurrency</code>). Returns a list of response strings in the same order as <code>messages_list</code>. Routes to the provider-specific internal function based on <code>config.llm_provider</code>.</p>
+    <p>Supported providers: <code>ollama</code>, <code>anthropic</code>, <code>openai</code>, <code>groq</code>, <code>vllm</code>.</p>
+    <div class="returns"><strong>Returns</strong> list[str] of response texts</div>
+  </div>
+</div>
+</section>
 
-</main>
+<!-- exchange.py -->
+<section id="api-exchange">
+<h2>exchange.py</h2>
+<p>Manages one multi-turn dialogue between two agents. Calls <code>memory.absorb()</code> after each turn without knowing which condition is active.</p>
+
+<div class="dc-card">
+  <div class="dc-header">@dataclass &nbsp; ExchangeTurn</div>
+  <div class="dc-body">
+    <table class="field-table">
+      <tr><th>Field</th><th>Type</th><th>Description</th></tr>
+      <tr><td>turn_number</td><td>int</td><td>1-indexed</td></tr>
+      <tr><td>initiator_utterance</td><td>str</td><td>Initiating agent's text</td></tr>
+      <tr><td>partner_utterance</td><td>str</td><td>Partner's text</td></tr>
+    </table>
+  </div>
+</div>
+
+<div class="fn-card">
+  <div class="fn-header"><span class="fn-name">run_exchange</span><span class="fn-sig">(initiator, partner, memory, config, current_stances, n_turns, sim_clock, day=0) -&gt; list[ExchangeTurn]</span> <span class="async-badge">async</span></div>
+  <div class="fn-body">
+    <p>Runs one full exchange. For each turn: builds prompts, calls <code>llm_call_many</code> for both agents in parallel, calls <code>memory.absorb()</code> for the listener. Returns the full turn list.</p>
+    <table class="param-table">
+      <tr><th>Param</th><th>Type</th><th>Description</th></tr>
+      <tr><td>day</td><td>int</td><td>Current day, passed to <code>memory.absorb</code> as <code>round=day</code></td></tr>
+      <tr><td>memory</td><td>AgentMemory</td><td>NullMemory or GhostMemory; caller decides</td></tr>
+      <tr><td>current_stances</td><td>dict</td><td>Live stance map for prompt injection</td></tr>
+    </table>
+    <div class="returns"><strong>Returns</strong> list[ExchangeTurn]</div>
+  </div>
+</div>
+</section>
+
+<!-- annotator.py -->
+<section id="api-annotator">
+<h2>annotator.py</h2>
+<p>Reads agent utterances from an exchange, assigns Likert stances, clamps to +-1 from prior stance.</p>
+
+<div class="fn-card">
+  <div class="fn-header"><span class="fn-name">annotate_many</span><span class="fn-sig">(exchanges, personas, previous_stances, config) -&gt; dict[str, LikertStance]</span> <span class="async-badge">async</span></div>
+  <div class="fn-body">
+    <p>Annotates all agents across all exchanges in one batch. For each agent, concatenates that agent's utterances, sends to LLM, parses Likert score, applies clamp:</p>
+    <pre>clamped = max(previous.score - 1, min(previous.score + 1, annotated.score))
+return LikertStance.from_score(clamped)</pre>
+    <div class="returns"><strong>Returns</strong> dict mapping agent_id to new LikertStance</div>
+  </div>
+</div>
+
+<div class="fn-card">
+  <div class="fn-header"><span class="fn-name">_retry_annotation</span><span class="fn-sig">(text, previous_stance, config, max_retries) -&gt; LikertStance</span> <span class="async-badge">async</span></div>
+  <div class="fn-body">
+    <p>Called when initial annotation parse fails. Retries with a clarified prompt. Applies the same +-1 clamp on success. Returns <code>previous_stance</code> unchanged if all retries fail.</p>
+  </div>
+</div>
+</section>
+
+<!-- memory.py -->
+<section id="api-memory">
+<h2>memory.py</h2>
+<p>Defines the AgentMemory interface and both implementations. <code>exchange.py</code> never imports either concrete class directly.</p>
+
+<div class="dc-card">
+  <div class="dc-header">ABC &nbsp; AgentMemory</div>
+  <div class="dc-body">
+    <p>Abstract base class with two required methods:</p>
+
+    <div class="fn-card">
+      <div class="fn-header"><span class="fn-name">absorb</span><span class="fn-sig">(listener: AgentPersona, utterance: str, round: int = 0) -&gt; None</span> <span class="async-badge">async</span></div>
+      <div class="fn-body">
+        <p>Called after each turn with the listener and what was said to them. NullMemory ignores everything. GhostMemory calls <code>extract_triplets_batch()</code> and stores results in GhostKG.</p>
+      </div>
+    </div>
+
+    <div class="fn-card">
+      <div class="fn-header"><span class="fn-name">get_context</span><span class="fn-sig">(agent: AgentPersona, partner: AgentPersona) -&gt; str</span></div>
+      <div class="fn-body">
+        <p>Returns a formatted string injected into the agent's prompt before each turn. NullMemory returns an empty string. GhostMemory queries the GhostKG for relevant triplets and formats them.</p>
+        <div class="returns"><strong>Returns</strong> str (may be empty)</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="dc-card">
+  <div class="dc-header">class &nbsp; NullMemory(AgentMemory)</div>
+  <div class="dc-body">
+    <p>No-op implementation. Both methods do nothing. Used for <code>no_kg</code>. Takes no constructor arguments.</p>
+  </div>
+</div>
+
+<div class="dc-card">
+  <div class="dc-header">class &nbsp; GhostMemory(AgentMemory)</div>
+  <div class="dc-body">
+    <p>Full GhostKG-backed implementation. Constructor takes an <code>AgentManager</code> and a list of active dimensions. Active dimensions are derived from <code>memory_condition</code> at startup.</p>
+    <table class="field-table">
+      <tr><th>Condition</th><th>Active dimensions</th></tr>
+      <tr><td>general_only</td><td>["general"]</td></tr>
+      <tr><td>tom_only</td><td>["tom"]</td></tr>
+      <tr><td>full_kg</td><td>["general", "tom", "beliefs"]</td></tr>
+    </table>
+  </div>
+</div>
+</section>
+
+<!-- triplets.py -->
+<section id="api-triplets">
+<h2>triplets.py</h2>
+<p>LLM-based triplet extraction. Called by GhostMemory. Not used in the <code>no_kg</code> condition.</p>
+
+<div class="dc-card">
+  <div class="dc-header">@dataclass(frozen=True) &nbsp; Triplet</div>
+  <div class="dc-body">
+    <table class="field-table">
+      <tr><th>Field</th><th>Type</th><th>Description</th></tr>
+      <tr><td>subject</td><td>str</td><td>Entity making the claim</td></tr>
+      <tr><td>predicate</td><td>str</td><td>Relationship or assertion</td></tr>
+      <tr><td>object</td><td>str</td><td>Target of the claim</td></tr>
+      <tr><td>dimension</td><td>str</td><td>"general" | "tom" | "beliefs"</td></tr>
+      <tr><td>round</td><td>int</td><td>Day number when extracted</td></tr>
+    </table>
+  </div>
+</div>
+
+<div class="fn-card">
+  <div class="fn-header"><span class="fn-name">extract_triplets_batch</span><span class="fn-sig">(utterances: list[str], dimensions: list[str], config: SimulationConfig, round: int = 0) -&gt; list[Triplet]</span> <span class="async-badge">async</span></div>
+  <div class="fn-body">
+    <p>Extracts triplets from a list of utterances across all active dimensions. Dispatches one LLM call per dimension in parallel. Returns a flat list of all extracted triplets with <code>round</code> set.</p>
+    <div class="returns"><strong>Returns</strong> list[Triplet]</div>
+  </div>
+</div>
+
+<div class="fn-card">
+  <div class="fn-header"><span class="fn-name">extract_triplets</span><span class="fn-sig">(utterance: str, dimension: str, config: SimulationConfig, round: int = 0) -&gt; list[Triplet]</span> <span class="async-badge">async</span></div>
+  <div class="fn-body">
+    <p>Single-utterance, single-dimension extraction. Calls LLM once, parses JSON output into <code>Triplet</code> objects with the given <code>dimension</code> and <code>round</code>.</p>
+    <div class="returns"><strong>Returns</strong> list[Triplet] (may be empty)</div>
+  </div>
+</div>
+</section>
+
+<!-- tracker.py -->
+<section id="api-tracker">
+<h2>tracker.py</h2>
+<p>Writes <code>results.csv</code> and <code>exchanges.jsonl</code>. One tracker instance per simulation run.</p>
+
+<div class="dc-card">
+  <div class="dc-header">class &nbsp; SimulationTracker</div>
+  <div class="dc-body">
+    <p>Constructor: <code>SimulationTracker(output_dir: Path, run_id: str, config: SimulationConfig)</code>. Opens both output files on construction. Writes the CSV header on first call.</p>
+
+    <div class="fn-card">
+      <div class="fn-header"><span class="fn-name">log</span><span class="fn-sig">(day, initiator, partner, turns, stance_before_a, stance_after_a, stance_before_b, stance_after_b, sim_clock) -&gt; None</span></div>
+      <div class="fn-body">
+        <p>Appends one row to <code>results.csv</code> and one JSON object to <code>exchanges.jsonl</code>. Both writes are synchronous. Called once per exchange, before <code>write_checkpoint</code>.</p>
+      </div>
+    </div>
+
+    <div class="fn-card">
+      <div class="fn-header"><span class="fn-name">finalize</span><span class="fn-sig">() -&gt; None</span></div>
+      <div class="fn-body">
+        <p>Flushes and closes both file handles. Called once at the end of the simulation.</p>
+      </div>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- checkpoint.py -->
+<section id="api-checkpoint">
+<h2>checkpoint.py</h2>
+<p>Crash-safe persistence. Writes <code>checkpoint.json</code> atomically. Manages per-day DB backups and resume detection.</p>
+
+<div class="fn-card">
+  <div class="fn-header"><span class="fn-name">write_checkpoint</span><span class="fn-sig">(day: int, config: SimulationConfig) -&gt; None</span></div>
+  <div class="fn-body">
+    <p>Writes <code>checkpoint.json</code> atomically (write to temp, then rename). Called once per day after all agents have exchanged and all CSV rows have been written.</p>
+  </div>
+</div>
+
+<div class="fn-card">
+  <div class="fn-header"><span class="fn-name">load_checkpoint</span><span class="fn-sig">(config: SimulationConfig) -&gt; int | None</span></div>
+  <div class="fn-body">
+    <p>Reads <code>checkpoint.json</code> if it exists. Returns <code>last_completed_iteration</code>, or <code>None</code> if no checkpoint is found.</p>
+    <div class="returns"><strong>Returns</strong> int (last completed day) or None</div>
+  </div>
+</div>
+
+<div class="fn-card">
+  <div class="fn-header"><span class="fn-name">backup_db</span><span class="fn-sig">(day: int, config: SimulationConfig) -&gt; None</span></div>
+  <div class="fn-body">
+    <p>Copies <code>config.db_path</code> to <code>simulation_iter_{day}.db.bak</code>. Called at the start of each day before any exchanges run. Day 0 backup captures the empty DB state.</p>
+  </div>
+</div>
+
+<div class="fn-card">
+  <div class="fn-header"><span class="fn-name">restore_db_backup</span><span class="fn-sig">(day: int, config: SimulationConfig) -&gt; None</span></div>
+  <div class="fn-body">
+    <p>Copies <code>simulation_iter_{day}.db.bak</code> back to <code>config.db_path</code>. Called on resume to roll GhostKG back to the state before the crashed day. Raises <code>FileNotFoundError</code> if the backup does not exist.</p>
+  </div>
+</div>
+</section>
+
+<!-- simulation.py -->
+<section id="api-simulation">
+<h2>simulation.py</h2>
+<p>Entry point. Owns the main loop. The only module that reads <code>memory_condition</code>.</p>
+
+<div class="fn-card">
+  <div class="fn-header"><span class="fn-name">main</span><span class="fn-sig">() -&gt; None</span> <span class="async-badge">async</span></div>
+  <div class="fn-body">
+    <p>Full simulation orchestration in order: load config, load personas, detect checkpoint, initialize GhostKG (if needed), build memory, run day loop, finalize tracker.</p>
+    <pre>PYTHONDONTWRITEBYTECODE=1 .venv/bin/python src/simulation.py</pre>
+  </div>
+</div>
+
+<div class="fn-card">
+  <div class="fn-header"><span class="fn-name">_build_memory</span><span class="fn-sig">(config: SimulationConfig, manager: AgentManager | None) -&gt; AgentMemory</span></div>
+  <div class="fn-body">
+    <p>The only place in the codebase that branches on <code>memory_condition</code>. Returns <code>NullMemory()</code> for <code>no_kg</code>, <code>GhostMemory(manager, dimensions)</code> for all other conditions. Called once at startup.</p>
+    <div class="returns"><strong>Returns</strong> AgentMemory (NullMemory or GhostMemory)</div>
+  </div>
+</div>
+
+<div class="fn-card">
+  <div class="fn-header"><span class="fn-name">_init_ghostkg</span><span class="fn-sig">(personas: list[AgentPersona], config: SimulationConfig) -&gt; AgentManager</span></div>
+  <div class="fn-body">
+    <p>Creates a <code>GhostKG.AgentManager</code> at <code>config.db_path</code>, then calls <code>manager.create_agent(agent_id)</code> for each persona. Skips creation if the agent already exists (resume path). Called only for KG conditions.</p>
+    <div class="returns"><strong>Returns</strong> AgentManager</div>
+  </div>
+</div>
+</section>
+
+</div><!-- .content -->
 
 <script>
-  // Highlight active sidebar link on scroll using IntersectionObserver
-  const sections = document.querySelectorAll('section[id]');
-  const navItems = document.querySelectorAll('.nav-item[href^="#"]');
-
-  const observer = new IntersectionObserver(entries => {
-    entries.forEach(entry => {
-      if (entry.isIntersecting) {
-        navItems.forEach(a => a.classList.remove('active'));
-        const active = document.querySelector(`.nav-item[href="#${entry.target.id}"]`);
-        if (active) active.classList.add('active');
+(function(){
+  var links = document.querySelectorAll('.sidebar nav a');
+  var targets = Array.from(links).map(function(l){ return document.querySelector(l.getAttribute('href')); }).filter(Boolean);
+  if(!targets.length) return;
+  var io = new IntersectionObserver(function(entries){
+    entries.forEach(function(e){
+      if(e.isIntersecting){
+        links.forEach(function(l){ l.classList.remove('active'); });
+        var active = document.querySelector('.sidebar nav a[href="#'+e.target.id+'"]');
+        if(active) active.classList.add('active');
       }
     });
-  }, { rootMargin: '-20% 0px -75% 0px' });
-
-  sections.forEach(s => observer.observe(s));
+  }, {rootMargin:'-10% 0px -85% 0px'});
+  targets.forEach(function(t){ io.observe(t); });
+})();
 </script>
-
 </body>
 </html>
