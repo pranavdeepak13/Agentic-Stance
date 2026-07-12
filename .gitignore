@@ -14,3 +14,4 @@ build/
 *.log
 .claude/
 resources/
+PLAN.md
