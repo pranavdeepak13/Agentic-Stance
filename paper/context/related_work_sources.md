@@ -22,7 +22,7 @@ None of these have a specific paper attached yet. A writer must run an
 actual literature search (paper-search or litreview skill, or a manual
 search) and replace each line below with a real, checked citation before
 it can appear in the paper. Do not let a model invent a plausible-sounding
-title, author list, or DOI for any of these — an invented citation is
+title, author list, or DOI for any of these; an invented citation is
 worse than a missing one.
 
 - **FSRS (Free Spaced Repetition Scheduler)**: the specific paper or

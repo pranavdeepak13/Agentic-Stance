@@ -1,13 +1,13 @@
 """
-analysis/plots.py — Generate all analysis charts from simulation results.
+analysis/plots.py: generate all analysis charts from simulation results.
 
 Produces the same plot types as the EPJ paper (Cau et al., 2025):
-  1. Opinion trajectory  — proportion of agents at each stance per iteration (Figure 2 equivalent)
-  2. Opinion distribution — stacked area chart of stance counts over time
-  3. Acceptance matrix   — heatmap of P(accept | Discussant=i, Opponent=j) (Figure 4 bottom)
-  4. Acceptance by distance — P(A|Δx) line chart (Figure 4 top)
-  5. Convergence metrics — entropy and σ over time
-  6. Cross-condition comparison — side-by-side subplots for all four ablation conditions
+  1. Opinion trajectory: proportion of agents at each stance per iteration (Figure 2 equivalent)
+  2. Opinion distribution: stacked area chart of stance counts over time
+  3. Acceptance matrix: heatmap of P(accept | Discussant=i, Opponent=j) (Figure 4 bottom)
+  4. Acceptance by distance: P(A|Δx) line chart (Figure 4 top)
+  5. Convergence metrics: entropy and σ over time
+  6. Cross-condition comparison: side-by-side subplots for all four ablation conditions
 
 Usage:
     python analysis/plots.py --data-dir data/ --output-dir data/plots/
@@ -34,6 +34,7 @@ import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
 import numpy as np
 import pandas as pd
+import seaborn as sns
 
 from metrics import (
     LABEL_ORDER,
@@ -50,20 +51,25 @@ from metrics import (
 )
 
 # ── Style constants ────────────────────────────────────────────────────────────
+# Diverging, colorblind-safe ramp for the five Likert stances (deep red -> deep
+# blue through a neutral gray midpoint), and a colorblind-safe categorical set
+# for the four memory conditions (seaborn "colorblind" palette, reordered so
+# no_kg reads as the neutral baseline).
 
 STANCE_COLORS = {
-    "Strongly Against":  "#d62728",
-    "Against":           "#ff7f0e",
-    "Neutral":           "#bcbd22",
-    "In Favor":          "#2ca02c",
-    "Strongly In Favor": "#1f77b4",
+    "Strongly Against":  "#9e2a2b",
+    "Against":           "#e08e6d",
+    "Neutral":           "#9a9a9a",
+    "In Favor":          "#6a9fb5",
+    "Strongly In Favor": "#1d5b79",
 }
 
+_cb = sns.color_palette("colorblind")
 CONDITION_COLORS = {
-    "no_kg":        "#7f7f7f",
-    "general_only": "#9467bd",
-    "tom_only":     "#17becf",
-    "full_kg":      "#e377c2",
+    "no_kg":        "#5a5a5a",
+    "general_only": _cb[0],
+    "tom_only":     _cb[2],
+    "full_kg":      _cb[3],
 }
 
 CONDITION_LABELS = {
@@ -73,12 +79,29 @@ CONDITION_LABELS = {
     "full_kg":      "Full KG",
 }
 
-plt.rcParams.update({
-    "figure.dpi":      150,
-    "font.size":       11,
-    "axes.spines.top": False,
-    "axes.spines.right": False,
-})
+sns.set_theme(
+    style="whitegrid",
+    context="paper",
+    font_scale=1.15,
+    rc={
+        "figure.dpi":         300,
+        "savefig.dpi":        300,
+        "font.family":        "serif",
+        "axes.edgecolor":     "#333333",
+        "axes.linewidth":     0.8,
+        "grid.linewidth":     0.5,
+        "grid.color":         "#dddddd",
+        "axes.spines.top":    False,
+        "axes.spines.right":  False,
+        "legend.frameon":     False,
+        "axes.titleweight":   "bold",
+        "axes.titlesize":     12,
+        "axes.labelsize":     10.5,
+        "xtick.labelsize":    9,
+        "ytick.labelsize":    9,
+        "legend.fontsize":    9,
+    },
+)
 
 
 # ── Individual plot functions ──────────────────────────────────────────────────
@@ -111,7 +134,7 @@ def plot_trajectory(
     ax.yaxis.set_major_formatter(mticker.PercentFormatter(xmax=100))
     title = "Opinion trajectory"
     if condition_name:
-        title += f" — {CONDITION_LABELS.get(condition_name, condition_name)}"
+        title += f": {CONDITION_LABELS.get(condition_name, condition_name)}"
     ax.set_title(title)
     ax.legend(loc="upper right", fontsize=9)
     fig.tight_layout()
@@ -144,7 +167,7 @@ def plot_opinion_distribution(
     ax.yaxis.set_major_formatter(mticker.PercentFormatter(xmax=100))
     title = "Opinion distribution over time"
     if condition_name:
-        title += f" — {CONDITION_LABELS.get(condition_name, condition_name)}"
+        title += f": {CONDITION_LABELS.get(condition_name, condition_name)}"
     ax.set_title(title)
     ax.legend(loc="upper left", fontsize=9, reverse=True)
     fig.tight_layout()
@@ -248,7 +271,7 @@ def plot_convergence_metrics(
     ax2.set_ylabel("Std deviation σ(t)")
     ax2.set_title("Opinion spread (std deviation)")
 
-    title = condition_name and f"Convergence metrics — {CONDITION_LABELS.get(condition_name, condition_name)}"
+    title = condition_name and f"Convergence metrics: {CONDITION_LABELS.get(condition_name, condition_name)}"
     fig.suptitle(title or "Convergence metrics")
     fig.tight_layout()
 
@@ -335,7 +358,7 @@ def compare_conditions(
     ax3.set_xlabel("Opinion distance Δx = x_Opponent − x_Discussant")
     ax3.set_ylabel("P(A | Δx)")
     ax3.set_ylim(0, 1)
-    ax3.set_title("Acceptance by opinion distance — all conditions")
+    ax3.set_title("Acceptance by opinion distance, all conditions")
     ax3.legend()
     fig3.tight_layout()
     _save(fig3, output_dir, "compare_acceptance_distance.png")
@@ -391,11 +414,12 @@ def plot_effective_clusters(
     condition_name: str = "",
 ) -> None:
     """
-    C(t) = N² / Σ n_i(t)² — effective number of opinion clusters over time.
+    C(t) = N² / Σ n_i(t)²: effective number of opinion clusters over time.
 
     Higher C → more fragmentation. Lower C → fewer, larger opinion groups.
     """
-    ec = effective_clusters(df)
+    traj = opinion_trajectory(df)
+    ec = effective_clusters(traj)
     fig, ax = plt.subplots(figsize=(8, 4))
 
     ax.plot(ec.index, ec.values,
@@ -407,7 +431,7 @@ def plot_effective_clusters(
     ax.set_ylabel("Effective clusters C(t)")
     title = "Opinion fragmentation (effective clusters)"
     if condition_name:
-        title += f" — {CONDITION_LABELS.get(condition_name, condition_name)}"
+        title += f": {CONDITION_LABELS.get(condition_name, condition_name)}"
     ax.set_title(title)
     ax.legend()
     fig.tight_layout()
@@ -454,7 +478,7 @@ def plot_agent_journey(
             ))
 
     if not records:
-        print(f"Agent {agent_id} not found in data — skipping journey plot.")
+        print(f"Agent {agent_id} not found in data, skipping journey plot.")
         return
 
     records.sort(key=lambda x: x[0])
@@ -475,28 +499,45 @@ def plot_agent_journey(
             color="#333333", linewidth=1.5, alpha=0.6, linestyle="--")
     ax.plot(iters, scores_after, "o", color="#333333", markersize=5, zorder=3)
 
-    # Highlight stance changes
+    # Highlight stance changes. Above a density threshold, per-point text
+    # labels overlap into an unreadable smear, so only annotate individually
+    # when there are few enough changes for labels to stay legible; beyond
+    # that, the colored markers alone still carry the signal.
+    n_changes = sum(changed)
+    annotate_individually = n_changes <= 20
+
     for i, (it, score, ch, partner) in enumerate(zip(iters, scores_after, changed, partners)):
         if ch:
-            ax.plot(it, score, "o", color="#e74c3c", markersize=9, zorder=4)
-            ax.annotate(
-                f"→ {label_map[score]}\n(w/ {partner})",
-                xy=(it, score),
-                xytext=(it + 0.5, score + 0.35),
-                fontsize=7.5, color="#c0392b",
-                arrowprops=dict(arrowstyle="->", color="#c0392b", lw=0.8),
-            )
+            ax.plot(it, score, "o", color="#e74c3c", markersize=7 if annotate_individually else 4,
+                    alpha=1.0 if annotate_individually else 0.7, zorder=4)
+            if annotate_individually:
+                ax.annotate(
+                    f"-> {label_map[score]}\n(w/ {partner})",
+                    xy=(it, score),
+                    xytext=(it + 0.5, score + 0.35),
+                    fontsize=7.5, color="#c0392b",
+                    arrowprops=dict(arrowstyle="->", color="#c0392b", lw=0.8),
+                )
+
+    if not annotate_individually:
+        ax.text(
+            0.01, 0.02,
+            f"{n_changes} of {len(records)} exchanges changed this agent's stance "
+            f"({n_changes / len(records) * 100:.1f}%). Individual labels omitted above "
+            f"20 changes; each red point is still one real stance change.",
+            transform=ax.transAxes, fontsize=8, color="#c0392b", va="bottom",
+        )
 
     # Y-axis stance labels
     ax.set_yticks([-2, -1, 0, 1, 2])
     ax.set_yticklabels(["Strongly\nAgainst", "Against", "Neutral", "In Favor", "Strongly\nIn Favor"],
                        fontsize=8)
     ax.set_ylim(-2.7, 2.7)
-    ax.set_xlabel("Iteration")
+    ax.set_xlabel("Exchange (sequential)")
     ax.set_ylabel("Stance")
 
     display_name = agent_name or agent_id
-    title = f"Opinion journey — {display_name}"
+    title = f"Opinion journey: {display_name}"
     if condition_name:
         title += f" ({CONDITION_LABELS.get(condition_name, condition_name)})"
     ax.set_title(title)
@@ -532,14 +573,15 @@ def compare_effective_clusters(
         if not csv.exists():
             continue
         df = pd.read_csv(csv)
-        ec = effective_clusters(df)
+        traj = opinion_trajectory(df)
+        ec = effective_clusters(traj)
         ax.plot(ec.index, ec.values,
                 color=CONDITION_COLORS.get(cond, "#888"),
                 label=CONDITION_LABELS.get(cond, cond),
                 linewidth=2)
 
     ax.set_xlabel("Iteration")
-    ax.set_ylabel("C(t) — effective clusters")
+    ax.set_ylabel("C(t), effective clusters")
     ax.set_title("Opinion fragmentation across memory conditions")
     ax.legend()
     fig.tight_layout()
@@ -594,7 +636,7 @@ def compare_acceptance_matrix(
 
         ax.set_title(CONDITION_LABELS.get(cond, cond), fontsize=10, fontweight="bold")
 
-    fig.suptitle("Acceptance probability matrix — all memory conditions", y=1.02, fontsize=13)
+    fig.suptitle("Acceptance probability matrix, all memory conditions", y=1.02, fontsize=13)
     fig.tight_layout()
     _save(fig, output_dir, "compare_acceptance_matrix.png")
 
@@ -648,7 +690,7 @@ def compare_transition_matrix(
 
         ax.set_title(CONDITION_LABELS.get(cond, cond), fontsize=10, fontweight="bold")
 
-    fig.suptitle("Opinion transition matrix — all memory conditions", y=1.02, fontsize=13)
+    fig.suptitle("Opinion transition matrix, all memory conditions", y=1.02, fontsize=13)
     fig.tight_layout()
     _save(fig, output_dir, "compare_transition_matrix.png")
 

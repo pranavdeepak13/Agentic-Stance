@@ -1,5 +1,5 @@
 """
-scripts/import_condition_results.py — Import raw results CSVs delivered by a
+scripts/import_condition_results.py: import raw results CSVs delivered by a
 collaborator into the pipeline's expected data/{topic}/{condition}/results.csv
 layout, correcting for a schema change: the DGX run now logs one exchange per
 agent per HOUR (not per day), so the raw `iteration` column is a fine-grained
@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import argparse
 import re
+import sys
 from pathlib import Path
 
 import pandas as pd
@@ -58,6 +59,15 @@ def import_one(csv_path: Path, condition: str, data_dir: Path) -> dict:
     out_dir = data_dir / condition
     out_dir.mkdir(parents=True, exist_ok=True)
     out_path = out_dir / "results.csv"
+
+    overwritten_rows = None
+    if out_path.exists():
+        try:
+            overwritten_rows = len(pd.read_csv(out_path, usecols=[0]))
+        except Exception:
+            overwritten_rows = -1  # existing file unreadable; still flag it
+        print(f"Warning: {out_path} already exists ({overwritten_rows} rows), overwriting with {len(df)} rows from {csv_path}")
+
     df.to_csv(out_path, index=False)
 
     return {
@@ -65,6 +75,7 @@ def import_one(csv_path: Path, condition: str, data_dir: Path) -> dict:
         "source": str(csv_path),
         "dest": str(out_path),
         "rows": len(df),
+        "overwritten_rows": overwritten_rows,
         "hourly_schema": had_hourly_schema,
         "days": int(df["day_id"].max()) if had_hourly_schema else int(df["iteration"].max()),
     }
@@ -100,7 +111,17 @@ def main() -> None:
         print(f"{s['condition']:<16} {s['rows']:>8}  {s['days']:>5}  {schema:<10}  {s['source']}")
 
     if unmatched:
-        print(f"\nUnmatched files (skipped): {', '.join(unmatched)}")
+        print(f"\nUnmatched files (skipped, matched no condition): {', '.join(unmatched)}")
+
+    matched_conditions = {s["condition"] for s in imported}
+    missing_conditions = set(CONDITION_PATTERNS) - matched_conditions
+    if missing_conditions:
+        print(f"\nWarning: no file matched for: {', '.join(sorted(missing_conditions))}. "
+              f"The downstream report will list these as pending, not as an error, "
+              f"confirm that is actually intended before treating the import as complete.")
+
+    if unmatched or missing_conditions:
+        sys.exit(1)
 
 
 if __name__ == "__main__":

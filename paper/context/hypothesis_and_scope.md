@@ -91,6 +91,6 @@ finding.
 - Cross-model comparison (only llama3.2 has been run to completion)
 - Cross-topic generalization (only immigration policy has been run)
 - The annotator-context ablation (general_only_ctx, tom_only_ctx,
-  full_kg_ctx) — planned as a follow-on, not part of this paper unless
+  full_kg_ctx): planned as a follow-on, not part of this paper unless
   it is explicitly added back into scope later
 - Network topology beyond uniform random daily pairing

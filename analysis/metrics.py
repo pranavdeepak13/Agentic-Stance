@@ -1,17 +1,17 @@
 """
-analysis/metrics.py — Compute the EPJ paper's opinion dynamics metrics from results.csv.
+analysis/metrics.py: compute the EPJ paper's opinion dynamics metrics from results.csv.
 
 All metrics match the definitions in Cau et al. (2025, EPJ Data Science).
 
 Metrics:
-  opinion_trajectory     — P_x(t): proportion of agents at each stance per iteration
-  entropy                — H(t): opinion diversity (higher = more diverse)
-  std_deviation          — σ(t): spread of opinion scores
-  effective_clusters     — C(t): effective number of opinion clusters
-  transition_matrix      — T_ij: empirical opinion update probabilities
-  acceptance_matrix      — A_ij: P(agent accepts | Discussant=i, Opponent=j)
-  rejection_matrix       — R_ij: P(agent rejects | Discussant=i, Opponent=j)
-  acceptance_by_distance — P(A | Δx): acceptance rate by opinion distance
+  opinion_trajectory     : P_x(t), proportion of agents at each stance per iteration
+  entropy                : H(t), opinion diversity (higher = more diverse)
+  std_deviation          : σ(t), spread of opinion scores
+  effective_clusters     : C(t), effective number of opinion clusters
+  transition_matrix      : T_ij, empirical opinion update probabilities
+  acceptance_matrix      : A_ij, P(agent accepts | Discussant=i, Opponent=j)
+  rejection_matrix       : R_ij, P(agent rejects | Discussant=i, Opponent=j)
+  acceptance_by_distance : P(A | Δx), acceptance rate by opinion distance
 
 Usage:
     import pandas as pd
@@ -125,39 +125,29 @@ def std_deviation(traj: pd.DataFrame, score_map: dict[str, int] | None = None) -
     return traj.apply(_sigma, axis=1).rename("std_deviation")
 
 
-def effective_clusters(df: pd.DataFrame) -> pd.Series:
+def effective_clusters(traj: pd.DataFrame) -> pd.Series:
     """
-    Effective number of opinion clusters C(t) = N² / Σ n_i(t)².
+    Effective number of opinion clusters C(t) = N² / Σ n_i(t)², where n_i(t) is
+    the number of AGENTS (not exchange-endpoints) holding stance i at time t.
 
     Higher C → more fragmentation (many similarly-sized opinion groups).
     Lower C  → fewer clusters (convergence toward fewer opinions).
 
     Formula from Sirbu et al. (2017), as used in the EPJ paper.
+
+    Takes the trajectory DataFrame from opinion_trajectory(df), the same input
+    entropy() and std_deviation() take, not the raw results.csv DataFrame.
+    Since opinion_trajectory already resolves each agent to its single most
+    recent stance per iteration (correctly handling iterations that bundle
+    many exchanges, e.g. a full day of hourly exchanges), effective_clusters
+    reuses that resolution instead of re-deriving it from raw exchange rows.
+    With p_i(t) = n_i(t) / N (traj's columns), C(t) = N² / Σ(p_i·N)² = 1 / Σp_i².
     """
-    records = []
-    for _, row in df.iterrows():
-        records.append((int(row["iteration"]), row["agent_a_stance_after_label"]))
-        records.append((int(row["iteration"]), row["agent_b_stance_after_label"]))
-
-    long_df = pd.DataFrame(records, columns=["iteration", "stance"])
-
-    # Most recent stance per agent per iteration (forward-fill)
-    # Simplified: count agent appearances per stance per iteration
-    result: dict[int, float] = {}
-    iterations = sorted(long_df["iteration"].unique())
-
-    for it in iterations:
-        sub = long_df[long_df["iteration"] <= it]
-        # Count distinct agents per stance (last occurrence wins)
-        # Since we don't have agent_id here, use raw counts as approximation
-        counts = sub[sub["iteration"] == it]["stance"].value_counts()
-        n = counts.sum()
-        if n == 0:
-            result[it] = 0.0
-        else:
-            result[it] = float(n ** 2) / float((counts ** 2).sum())
-
-    return pd.Series(result, name="effective_clusters")
+    p = traj.to_numpy(dtype=float)
+    sum_sq = (p ** 2).sum(axis=1)
+    with np.errstate(divide="ignore"):
+        c = np.where(sum_sq > 0, 1.0 / sum_sq, 0.0)
+    return pd.Series(c, index=traj.index, name="effective_clusters")
 
 
 def transition_matrix(df: pd.DataFrame) -> pd.DataFrame:
@@ -316,7 +306,7 @@ def compute_all_metrics(df: pd.DataFrame) -> dict:
         "trajectory":           traj,
         "entropy":              entropy(traj),
         "std_deviation":        std_deviation(traj),
-        "effective_clusters":   effective_clusters(df),
+        "effective_clusters":   effective_clusters(traj),
         "transition_matrix":    transition_matrix(df),
         "acceptance_matrix":    acceptance_matrix(df),
         "rejection_matrix":     rejection_matrix(df),

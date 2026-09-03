@@ -27,7 +27,7 @@ it is structured (e.g. whether it is still one random partner per
 agent per hour, whether `CLOCK_ADVANCE_HOURS` changed, whether
 checkpointing changed cadence too).
 
-## Simulation loop (src/simulation.py) — as implemented in this repo, may be stale
+## Simulation loop (src/simulation.py), as implemented in this repo, may be stale
 
 One iteration equals one simulated day. At the start of each day:
 
