@@ -68,7 +68,7 @@ def opinion_trajectory(df: pd.DataFrame) -> pd.DataFrame:
     # (forward-fill to get population snapshots at every iteration)
     pivot = (
         long_df
-        .sort_values("iteration")
+        .sort_values("iteration", kind="stable")
         .groupby(["iteration", "agent_id"])["stance"]
         .last()
         .unstack("agent_id")

@@ -5,7 +5,29 @@ methodology section may only state what is written here or what a writer
 has personally re-verified against the named file. Do not extrapolate
 behavior that is not shown below.
 
-## Simulation loop (src/simulation.py)
+## Open discrepancy: exchange cadence (flagged 2026-09-03, needs verification)
+
+The results delivered from the DGX run (`results/*.csv`, imported via
+`scripts/import_condition_results.py`) show 100,800 rows per condition
+over 30 days: 140 agents x 24 hours x 30 days, with explicit `day_id`
+and `hour_id` columns. This means each agent exchanged roughly once per
+simulated hour, not once per simulated day as described below and as
+the current `src/simulation.py` in this repository implements.
+
+Rossetti mentioned fixing "a few minor issues" before running on the
+DGX, but the actual diff has not been shared or pulled into this repo
+yet. Until it is, the "Simulation loop" section below describes what
+this repository's own `src/simulation.py` does, which does not match
+the cadence of the delivered data. Do not write the methodology section
+from this document until that diff is obtained and this section is
+reconciled with it. Ask Rossetti directly for the commit or patch
+rather than inferring the mechanism from the CSV shape alone, since the
+CSV only tells us the row-level output, not how the loop that produced
+it is structured (e.g. whether it is still one random partner per
+agent per hour, whether `CLOCK_ADVANCE_HOURS` changed, whether
+checkpointing changed cadence too).
+
+## Simulation loop (src/simulation.py) — as implemented in this repo, may be stale
 
 One iteration equals one simulated day. At the start of each day:
 

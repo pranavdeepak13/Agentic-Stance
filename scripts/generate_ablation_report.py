@@ -70,6 +70,7 @@ def summarize_condition(df: pd.DataFrame) -> dict:
 
     n_days = int(df["iteration"].max())
     n_rows = len(df)
+    hourly_schema = "exchange_id" in df.columns
 
     first_day_dist = traj.iloc[0] if len(traj) else None
     last_day_dist = traj.iloc[-1] if len(traj) else None
@@ -81,6 +82,7 @@ def summarize_condition(df: pd.DataFrame) -> dict:
     return {
         "n_days": n_days,
         "n_rows": n_rows,
+        "hourly_schema": hourly_schema,
         "entropy_start": float(entropy.iloc[0]) if len(entropy) else None,
         "entropy_end": float(entropy.iloc[-1]) if len(entropy) else None,
         "left_share_start": left_start,
@@ -149,11 +151,34 @@ def _text_page(pdf: PdfPages, title: str, body_lines: list[str]) -> None:
         plt.close(fig)
 
 
-def _procedure_page(pdf: PdfPages, present: list[str], missing: list[str]) -> None:
+def _procedure_page(pdf: PdfPages, present: list[str], missing: list[str], summaries: dict) -> None:
+    any_hourly = any(s.get("hourly_schema") for s in summaries.values())
+    sample = next(iter(summaries.values())) if summaries else None
+
+    cadence_lines = []
+    if any_hourly and sample:
+        cadence_lines = [
+            "Exchange cadence in this run",
+            "",
+            f"Each agent now exchanges once per hour, not once per day: {sample['n_rows']:,}",
+            f"rows over {sample['n_days']} days works out to 140 agents x 24 hours x",
+            f"{sample['n_days']} days. The original 'iteration' column in the raw file was",
+            "a running exchange counter, not a day index. This report reindexes it to",
+            "the day number (iteration = day_id) before computing entropy, left-leaning",
+            "share, and effective clusters, so those three numbers describe a full-day",
+            "population snapshot, not a single hourly exchange. Acceptance rate by",
+            "stance distance and the transition/acceptance matrices are computed on",
+            "every hourly exchange directly, since those are about individual",
+            "conversations, not population state, and using every exchange gives more",
+            "statistical power rather than less.",
+            "",
+        ]
+
     lines = [
         f"Conditions included: {', '.join(CONDITION_LABELS.get(c, c) for c in present) if present else 'none yet'}",
         f"Conditions pending: {', '.join(CONDITION_LABELS.get(c, c) for c in missing)}" if missing else "",
         "",
+        *cadence_lines,
         "What this report measures",
         "",
         "Each condition ran the same 140-agent population through the same",
@@ -282,7 +307,7 @@ def build_pdf(data_dir: Path, figures_dir: Path, out_path: Path) -> None:
     out_path.parent.mkdir(parents=True, exist_ok=True)
 
     with PdfPages(out_path) as pdf:
-        _procedure_page(pdf, list(summaries.keys()), missing)
+        _procedure_page(pdf, list(summaries.keys()), missing, summaries)
 
         if not summaries:
             _text_page(pdf, "No data yet", ["No results.csv found under any condition directory."])

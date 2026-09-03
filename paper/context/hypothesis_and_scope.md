@@ -37,11 +37,17 @@ Population: 140 agents, immigration policy topic, truncated-Gaussian
 stance distribution (10% far left, 20% left, 40% center, 20% right, 10%
 far right).
 
-Simulation length: originally 10 days for no_kg. Extended to 30 days for
-general_only, tom_only, and full_kg by the collaborator running the DGX
-ablation. The no_kg baseline was re-run at 30 days for alignment. Any
-comparison across conditions must use the 30-day versions of all four,
-not mix the original 10-day no_kg with 30-day KG conditions.
+Simulation length: originally 10 days for no_kg, at one exchange per
+agent per day. Extended to 30 days for general_only, tom_only, and
+full_kg by the collaborator running the DGX ablation. The no_kg
+baseline was re-run at 30 days for alignment. All four conditions are
+now confirmed at 30 days, delivered 2026-09-03, 100,800 rows per
+condition (140 agents x 24 hours x 30 days). This is a materially
+different design than the original 10-day runs: the DGX version
+exchanges roughly once per simulated hour, not once per day. The
+mechanism behind this change has not been confirmed against source code
+yet (see `methodology_facts.md`, "Open discrepancy"). Do not describe
+the cadence as "once per day" anywhere until that is resolved.
 
 ## What would count as support for the hypothesis
 
