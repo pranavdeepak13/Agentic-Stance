@@ -2,8 +2,8 @@
 topics/immigration.py — 140 agent personas for the immigration policy topic.
 
 Stance convention (follows EPJ paper by Cau et al. 2025):
-  "In Favor"  = supports restrictive immigration policy
-  "Against"   = against restrictive immigration policy (pro-immigration)
+    "In Favor"  = supports restrictive immigration policy
+    "Against"   = against restrictive immigration policy (pro-immigration)
 
 Distribution: FAR_LEFT 14 | LEFT 28 | CENTER 56 | RIGHT 28 | FAR_RIGHT 14
 """
