@@ -2,10 +2,21 @@
 
 ## Target format
 
-Final deliverable per section is LaTeX, written to be pasted directly
-into an Overleaf project. Draft in plain prose first (markdown is fine
-for iteration), convert to LaTeX only once the content is settled, since
-fixing wording is harder to review inside `\citep{}` and `\begin{}` noise.
+The manuscript is a single LaTeX file, `paper/latex/main.tex`, edited on
+Overleaf or Prism. The folder that gets uploaded holds only `main.tex`,
+`references.bib`, and the figure PNGs. Pranav writes every section. Each
+section starts with a `% GUIDE` comment block that says what it must
+contain; delete the block once the section is done.
+
+LaTeX conventions:
+- `\citep{key}` for a parenthetical citation, `\citet{key}` for a narrative
+  one, with keys only from `references.bib`, which mirrors the Confirmed tier
+  of `related_work_sources.md`.
+- `\cond{no\_kg}` (etc.) for memory-condition names.
+- `\pending{...}` for anything unresolved. It prints in red.
+- `\label`/`\ref` for sections, tables, and figures, never hard-coded numbers.
+- `booktabs` tables; `tabularx` for text-heavy ones.
+- Remove `\nocite{*}` before submission.
 
 Confirm the target venue and its LaTeX class before final formatting.
 Given this project extends Cau et al. (2025), *EPJ Data Science*

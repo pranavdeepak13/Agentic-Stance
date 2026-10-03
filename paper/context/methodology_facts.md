@@ -27,6 +27,38 @@ it is structured (e.g. whether it is still one random partner per
 agent per hour, whether `CLOCK_ADVANCE_HOURS` changed, whether
 checkpointing changed cadence too).
 
+### Partial resolution from the data itself (2026-09-30)
+
+The loop code is still unconfirmed. The following facts are verified directly
+from the four delivered CSVs by `scripts/compute_paper_numbers.py` and can be
+stated in the paper as properties of the delivered data (see
+`reports/full_ablation_summary.md`, Section 1):
+
+- 30 simulated days x 24 rounds per day = 720 rounds per condition.
+- The `sim_clock` value advances by exactly one simulated hour per round.
+- Every round contains exactly 140 exchanges, and each of the 140 agents is
+  the initiator of exactly one of them. The "one initiated exchange per
+  agent per round" structure below therefore still holds, with a round
+  lasting one simulated hour instead of one simulated day.
+- Being picked as a partner is unbounded, as below (1 to 8 times in a round
+  when picked).
+- The pairing schedule and the per-exchange turn counts are identical across
+  all four conditions, row for row.
+- No single update changes a stance by more than one step, so the clamp was
+  active.
+
+Still unknown, pending Rossetti's diff: how often `set_agent_time()` is
+called (per round or per day), where `backup_db()` and `write_checkpoint()`
+fire, whether any other change was made to prompts, the topic string (the
+CSV's `topic` value is "immigration", this repo uses "immigration policy"),
+or the annotator, and which model vLLM served.
+
+Approved wording for the Methods section until the diff arrives: "In the
+delivered runs, each agent initiated one exchange per simulated hour with a
+uniformly random partner, for 24 rounds per simulated day over 30 days. This
+cadence is recovered from the logged data; the exact loop implementation used
+on the collaborator's infrastructure is pending confirmation."
+
 ## Simulation loop (src/simulation.py), as implemented in this repo, may be stale
 
 One iteration equals one simulated day. At the start of each day:
@@ -150,3 +182,56 @@ at `last_completed_iteration + 1`. The DGX ablation script
 (`scripts/run_dgx_ablation.sh`) wraps this in a retry loop (up to 5
 attempts per condition) and relies entirely on this existing mechanism
 rather than reimplementing resume logic.
+
+## Prompts and the stance scale (src/prompts.py, src/config.py, topics/immigration.py)
+
+Added 2026-09-30, verified against the named files.
+
+- Agent system prompt (`AgentSystemPrompt`): gives the agent its name, age,
+  occupation, political leaning, free-text persona, the topic, and its
+  current stance label. It says: "You may change your mind if you find their
+  argument genuinely convincing, or you may push back if you disagree. Do not
+  simply agree to be agreeable."
+- Agent user prompt (`AgentUserPrompt`): when memory context is non-empty,
+  it is injected under the header "Here is what you remember from previous
+  conversations on this topic:". Under no_kg that block is absent. Replies
+  are limited to 2 to 4 sentences.
+- Annotator prompt (`AnnotatorSystemPrompt`, `AnnotatorUserPrompt`): tells
+  the annotator to act as a neutral stance annotator, to report the stance
+  the agent expressed rather than its own view, and to output one label from
+  the five-point scale. The scale defines In Favor / Against relative to
+  "the proposition".
+- Triplet extraction prompt (`TripletSystemPrompt`): one call per active
+  dimension. The dimension guidance is "facts about the topic, policies, or
+  events mentioned" (general), "what the speaker believes about the other
+  person's views or stance" (tom), and "the speaker's own stated positions,
+  values, or opinions" (beliefs). It asks for 0 to 5 triplets of the form
+  `subject | predicate | object`, 3 to 8 words per part, "only what is
+  clearly stated, not inferred".
+- The topic string passed to agents and annotator is `config.topic`, default
+  "immigration policy". No proposition is stated. Neither the agent nor the
+  annotator is told what In Favor means.
+- Intended polarity, from the docstring of `topics/immigration.py`: "In
+  Favor" means supporting restrictive immigration policy, and "Against"
+  means pro-immigration. Personas with far-right leaning start at Strongly
+  In Favor. Because the prompt never states the proposition, the paper must
+  report stances by scale label and must not call either side
+  pro-immigration. Report the missing proposition as a validity threat.
+- The DGX data's `topic` column reads "immigration", not "immigration
+  policy". Rossetti's code may have used a different topic string. This is
+  unconfirmed.
+
+## Run facts for the delivered ablation (verified from data, see reports/full_ablation_summary.md)
+
+- One run per condition, `RANDOM_SEED=42` per `scripts/run_dgx_ablation.sh`.
+  The data confirms that all four conditions share an identical pairing
+  schedule and identical per-exchange turn counts, so seeded randomness
+  governs pairing and turn counts. Differences between conditions come from
+  memory content and from the LLM outputs.
+- Model served on the DGX: unconfirmed. `scripts/DGX_RUNBOOK.md`
+  recommends `meta-llama/Llama-3.1-8B-Instruct` via vLLM, and the repo
+  default (`src/config.py`) is `llama3.2` via Ollama. Do not name a model
+  for the DGX runs in the paper until Rossetti confirms it.
+- GhostKG version installed in this repo: 0.2.0, which implements FSRS v6
+  with 21 default parameters (`ghost_kg/memory/fsrs.py`). Whether the DGX
+  run used the same version is unconfirmed.

@@ -1,0 +1,702 @@
+% ai_draft_v1.tex -- REFERENCE ONLY: the complete AI-assisted first draft (2026-10-02),
+% flattened into one file. Not the manuscript. The manuscript is paper/latex/main.tex.
+% Structured Memory and Selective Agreement in Populations of LLM Agents
+%
+% Document class: plain `article`. The target venue (EPJ Data Science, `sn-jnl`)
+% is unconfirmed, so this file keeps all venue-specific formatting out of the
+% section files: switching class should only touch this preamble.
+%
+% Build: `make` (tectonic) or upload this folder to Overleaf (pdfLaTeX + BibTeX).
+
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage[margin=2.5cm]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{tabularx}
+\usepackage[hyphens]{url}
+\usepackage[font=small,labelfont=bf]{caption}
+\usepackage[round,authoryear]{natbib}
+\usepackage{xcolor}
+\usepackage{microtype}
+\usepackage[hidelinks]{hyperref}
+\urlstyle{tt}
+
+% ---------------------------------------------------------------------------
+% Review macros
+% ---------------------------------------------------------------------------
+% \pending{...}  an open item that must be resolved before submission (red).
+% \src{...}      provenance of a number or claim (results file, grounding doc).
+%                Hidden by default; set \showsourcestrue to print it in the margin.
+% \cond{...}     a memory-condition name, typeset uniformly.
+\newif\ifshowsources
+\showsourcesfalse   % \showsourcestrue for a provenance-annotated review copy
+\newcommand{\pending}[1]{\textcolor{red}{\textbf{[#1]}}}
+\ifshowsources
+  \newcommand{\src}[1]{\unskip\marginpar{\raggedright\tiny\textcolor{gray}{#1}}}
+\else
+  \newcommand{\src}[1]{\unskip}
+\fi
+\newcommand{\cond}[1]{\textsf{#1}}
+
+\graphicspath{{../latex/figures/}}
+
+\title{Structured Memory and Selective Agreement\\in Populations of LLM Agents}
+\author{%
+  Pranav Deepak \and Giulio Rossetti\\[0.5em]
+  \small\pending{author order, affiliations, and corresponding author to be agreed}
+}
+\date{Draft of \today}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+Populations of interacting large language model (LLM) agents do not simply agree with whoever speaks last. \citet{cau2025selective} show that such agents accept opinions selectively, favouring partners whose views are more agreeable relative to the discussion's framing. Their agents, like most in this literature, carry no memory between exchanges. We ask whether persistent, structured, decaying memory changes this pattern, and whether the kind of memory matters. We extend the LODAS framework with GhostKG, a per-agent knowledge graph whose contents decay under the FSRS spaced-repetition scheduler. We run four conditions, holding the population, topic, seed, and pairing schedule fixed: no memory, memory of facts, memory of inferred partner beliefs (theory of mind), and all three content types together with the agent's own stated positions. Each condition simulates 140 agents debating immigration policy for 30 simulated days, 100,800 exchanges per condition. Memory content shapes the population outcome. Facts-only memory yields the most convergent population and roughly quadruples the no-memory directional acceptance bias at one step (+0.176 against +0.042). Combined memory yields the most individual churn (47.9\% of stance updates change stance, against 26.7\% to 33.6\% elsewhere) and the least selective acceptance. Partner-belief memory changes little. We had expected theory-of-mind memory to matter most and combined memory to be the most stable. We report this reversal against criteria stated in advance, and we identify why the entropy-based stability criterion we chose could not detect it. Every comparison rests on a single run per condition. We therefore set out the specific follow-up runs the argument requires.
+
+\pending{pending: word count check against venue limit once venue is confirmed}
+\end{abstract}
+
+
+\section{Introduction}\label{sec:1}
+
+Language models tend to tell users what they appear to want to hear. Larger models repeat back a dialogue user's preferred answer more often \citep{perez2023discovering}. Deployed assistants tailor free-form responses to a user's stated views across several task types \citep{sharma2023sycophancy}. Scale and instruction tuning both increase this sycophancy, including on political opinion questions \citep{wei2023synthetic}. These findings concern one model responding to one user.
+
+Populations of interacting LLM agents behave differently. \citet{cau2025selective} built LODAS, a framework in which randomly paired agents debate a statement: an Opponent argues, and a Discussant accepts, rejects, or ignores the argument, moving its own opinion by at most one step on a seven-point scale \citep{cau2025selective}. If the agents were sycophantic, a Discussant would move toward any Opponent. Instead, agents accept opinions that are more agreeable relative to the discussion's framing statement more readily than opinions that are less agreeable, and they actively reject some partners \citep{cau2025selective}. Cau et al.\ call this selective agreement. It is a population-level, directional pattern. Cau et al.\ conclude that it is neither sycophancy nor bounded confidence in general, although their Llama agents show a form of bounded confidence \citep{cau2025selective}.
+
+LODAS agents have no memory. Each exchange starts from the agent's current opinion and the immediate conversation alone. This isolates the core effect cleanly, but it leaves open whether what an agent remembers changes how it responds to persuasion. Memory is a central component of LLM-based agents \citep{zhang2025memorysurvey}. Generative Agents, for example, keep a full record of each agent's experiences and retrieve from it before acting \citep{park2023generative}. If selective agreement depends on memorylessness, results obtained without memory may not carry over to the agents people actually build.
+
+We test this with GhostKG, a library that gives each agent its own knowledge graph of subject-predicate-object triplets \citep{ghostkg}. GhostKG weakens stored triplets over simulated time with FSRS, a spaced-repetition scheduler \citep{fsrs_algorithm} from a line of work that models memory retention from large-scale human review logs \citep{ye2022ssp,su2023dynamics}. We distinguish three kinds of memory content: general facts raised in conversation, theory-of-mind inferences about what a specific partner believes, and the agent's own stated beliefs. We run four conditions: no memory, facts only, partner beliefs only, and all three combined. The population, topic, seed, and pairing schedule are the same in all four, so the conditions differ only in memory content and in the model outputs that content produces.
+
+Before the results existed, we expected theory-of-mind memory to reduce unconditional agreement most, and combined memory to produce the most stable opinions. The data show a different ordering. Facts-only memory produces the most convergent population and the strongest directional acceptance bias. Combined memory produces the most churn and the least selective acceptance. Partner-belief memory changes little. We report this against the criteria we stated in advance.
+
+\textbf{Contributions.}
+
+\begin{enumerate}
+  \item A controlled four-condition ablation of memory content in a LODAS-style population of 140 agents over 30 simulated days, with a pairing schedule shared across conditions, so that differences between conditions trace to memory rather than to who met whom.
+  \item Evidence that the kind of memory, not only its presence, shapes population-level opinion dynamics. Facts-only memory amplifies the one-step directional acceptance bias about fourfold and yields the most convergence. Combined memory yields the most churn and the least selective acceptance.
+  \item A transparent account of a reversed prediction. We show why a population-level entropy criterion cannot separate stable individuals from a churning population whose aggregate stays diverse, and we report both the signed acceptance measure of Cau et al.\ and an unsigned distance measure, which capture different properties.
+  \item Two methodological cautions for this kind of simulation. A stance scale must be tied to an explicitly stated proposition, which our prompts omitted. And a pilot run on a different backend and cadence can show directional drift that does not recur.
+  \item A simulation framework supporting arbitrary topics, memory conditions, and LLM backends, in which the memory condition is chosen in one place at startup and the exchange loop never branches on it. \pending{pending: repository URL and release decision}
+\end{enumerate}
+
+Section~\ref{sec:2} reviews classical opinion dynamics, single-agent sycophancy, LLM agent populations, and agent memory. Section~\ref{sec:3} describes the framework, the memory conditions, and the metrics. Section~\ref{sec:4} sets out the experimental design and its relation to LODAS. Section~\ref{sec:5} reports results. Section~\ref{sec:6} interprets them and lists the experiments the argument needs next. Section~\ref{sec:7} states limitations. Section~\ref{sec:8} concludes.
+
+\section{Related Work}\label{sec:2}
+
+\subsection{Opinion dynamics models and their metrics}\label{sec:2.1}
+
+DeGroot's model updates each agent's belief as a weighted average of other agents' beliefs, and studies when repeated averaging brings a group to a consensus \citep{degroot1974consensus}. Hegselmann and Krause restrict that averaging to neighbors within a bounded confidence interval, so agents ignore opinions too far from their own \citep{hegselmann2002opinion}. Deffuant et al.\ formulate the pairwise version of the same idea: two agents influence each other only when their opinions are already close enough, and distance from a partner's stance gates whether interaction changes an opinion at all \citep{deffuant2000mixing}. The voter model takes influence to its simplest form, where an agent adopts a random neighbor's opinion outright, and Holley and Liggett give the ergodic theory for this process on infinite interacting systems \citep{holley1975ergodic}. Castellano, Fortunato, and Loreto review this family of models and frame consensus, fragmentation, and polarization as order parameters that summarize a population's opinion distribution over time \citep{castellano2009statistical}. Sîrbu et al.\ survey extensions to these models and their external effects \citep{sirbu2017opinion}.
+
+These models describe outcomes at the level of the population: consensus, fragmentation into a few stable factions, or polarization \citep{castellano2009statistical}. Summary statistics of the opinion distribution register these regimes directly. Shannon entropy falls as opinions concentrate. The effective number of clusters counts how many similarly sized groups remain. Cau et al.\ carry this framing over to LLM agent populations, and our entropy, effective-cluster, and acceptance metrics follow their definitions \citep{cau2025selective}.
+
+\subsection{LLM sycophancy in single-agent settings}\label{sec:2.2}
+
+Sycophancy names a single model's tendency to tailor its output to a user's stated view rather than to what is correct. Perez et al.\ show that larger language models are more likely to repeat back a dialogue user's preferred answer, and that reinforcement learning from human feedback can make a model express stronger political views, with immigration named as one topic where this appears \citep{perez2023discovering}. Sharma et al.\ find sycophancy across five deployed assistants and four free-form task types, and trace part of the cause to human preference data that favors responses matching the user's own view \citep{sharma2023sycophancy}. Wei et al.\ define sycophancy as tailoring a response to a user's view even when that view is not objectively correct, and show that both model scale and instruction tuning increase it, including on opinion questions such as politics \citep{wei2023synthetic}. All three results describe a single model responding to a single user's stated preference.
+
+Cau et al.\ move the question from one model and one user to a population of interacting LLM agents \citep{cau2025selective}. They measure the probability that an agent moves toward a debate partner as a function of the signed distance between the partner's opinion and its own. If agents were sycophantic, that probability would be high regardless of the partner's position. Instead, agents accept partners whose opinion is more agreeable relative to the discussion's framing statement more readily than partners whose opinion is less agreeable, and they reject some partners outright. Cau et al.\ call this selective agreement and conclude that their agents show neither sycophancy nor bounded confidence in general, although their Llama agents show a form of bounded confidence, with greater susceptibility to nearby opinions \citep{cau2025selective}.
+
+\subsection{LLM agent populations as opinion-dynamics simulators}\label{sec:2.3}
+
+Chuang et al.\ simulate opinion dynamics with networks of LLM-based agents and find a strong bias toward accurate information, with the population converging toward scientific consensus unless confirmation bias is deliberately induced through prompting \citep{chuang2024simulating}. Cau et al.\ build the LODAS framework that this paper extends \citep{cau2025selective}. In LODAS, a randomly chosen Opponent tries to persuade a randomly chosen Discussant about the Ship of Theseus paradox, a topic chosen to minimise controversy. The Discussant then accepts, rejects, or ignores the argument and updates its own opinion by at most one step on a seven-point scale. LODAS populations of Mistral-7B and Llama-3-8B agents converge toward agreement with the framing statement, and about one in five Opponent statements contains a logical fallacy that measurably influences opinion change \citep{cau2025selective}. Neither of these two studies gives its agents persistent memory of prior exchanges; each exchange is evaluated against the agent's current stance and the immediate conversation only.
+
+\subsection{Memory for LLM agents}\label{sec:2.4}
+
+A separate line of work gives LLM agents memory beyond a single context window. Retrieval-augmented generation conditions a model's output on content retrieved from an external store rather than relying on the context window alone, which is the general pattern that any persistent-memory agent architecture builds on \citep{lewis2020rag}. Park et al.'s Generative Agents store a complete natural-language record of an agent's experiences, periodically synthesize higher-level reflections from that record, and retrieve relevant memories dynamically when generating the next action, including opinions the agent forms and conversations it initiates \citep{park2023generative}. Packer et al.'s MemGPT organizes memory into tiers and moves data between a fast tier and a slow tier to extend the effective context available to a model \citep{packer2023memgpt}. Zhong et al.'s MemoryBank updates an LLM's long-term memory using a mechanism inspired by the Ebbinghaus forgetting curve, so that memories are reinforced or forgotten as a function of elapsed time and relative significance, which is the closest prior use of a forgetting curve in LLM agent memory \citep{zhong2024memorybank}. Zhang et al.\ survey memory mechanisms for LLM-based agents as a distinct architectural component \citep{zhang2025memorysurvey}. Edge et al.\ pair a knowledge graph with retrieval-augmented generation, establishing graph-structured retrieval as an existing approach, separate from the flat-text stores used above \citep{edge2024graphrag}.
+
+GhostKG, the memory library used in this paper, gives each agent its own knowledge graph and applies FSRS-6 decay to the triplets stored in it \citep{ghostkg}. FSRS is a spaced-repetition scheduling algorithm; the version GhostKG implements follows the FSRS v6 specification \citep{fsrs_algorithm} and builds on a research line that models memory retention as a Markov process fitted to large-scale review logs, first formulated as a stochastic shortest-path scheduling problem \citep{ye2022ssp} and then extended to capture the dynamics of memory more directly \citep{su2023dynamics}. In this paper's implementation, GhostKG's decay is keyed on a simulated clock, so triplets that are older or less reinforced retrieve with lower weight as simulated time advances, and this decay curve is applied uniformly regardless of what kind of content a triplet holds. What varies across conditions is not the decay mechanism but which dimension of content gets written and retrieved in the first place: each triplet is tagged as general (facts about the topic), tom (an inferred belief about what a specific partner thinks), or beliefs (the agent's own stated position), and an agent's memory condition is defined by which of these three dimensions is active.
+
+None of the models in Section~\ref{sec:2.1} give agents anything resembling a decaying, dimension-typed memory of a specific partner, since they operate on scalar opinion values and fixed or randomly drawn interaction structures rather than on any stored representation of what was said. Generative Agents, MemGPT, and MemoryBank give a single agent persistent memory, but none of them are evaluated as a population whose collective opinion distribution is the outcome of interest, and none separate a partner's identity into its own memory dimension. Chuang et al.'s and Cau et al.'s LLM agent populations measure population-level opinion dynamics, but neither gives its agents memory across exchanges. No work in the confirmed sources for this paper varies the kind of memory an agent carries into a debate while holding the population, the pairing schedule, and the topic fixed. That is the gap this paper's four-condition ablation addresses.
+
+% ----------------------------------------------------------------------
+% Sources used (claim tracing for reviewers; not typeset)
+% - `paper/context/related_work_sources.md`, including the Cau et al.\ design details verified against the full text (added by the main thread on 2026-09-30, after this section's first draft): every citation and its licensed claim, matched key by key to the "Supports" line for that entry (degroot1974consensus, hegselmann2002opinion, deffuant2000mixing, holley1975ergodic, castellano2009statistical, sirbu2017opinion, cau2025selective, perez2023discovering, sharma2023sycophancy, wei2023synthetic, chuang2024simulating, lewis2020rag, park2023generative, packer2023memgpt, zhong2024memorybank, zhang2025memorysurvey, edge2024graphrag, ghostkg, fsrs_algorithm, ye2022ssp, su2023dynamics).
+% - `paper/context/methodology_facts.md`: GhostKG mechanism claims in 2.4 (FSRS decay keyed on simulated clock via `set_agent_time()`, decay applied uniformly across dimensions, triplet dimensions general/tom/beliefs, `analysis/metrics.py` following Cau et al.'s metric definitions).
+% - `paper/context/conditions_and_implementation.md`: confirmation that the general/tom/beliefs dimension distinction is the only mechanical difference between memory conditions, used to state the gap precisely in the closing paragraph.
+% - `paper/context/hypothesis_and_scope.md`: used only to keep framing consistent with the paper's research question (no hypothesis claims or results numbers appear in this section, per the style guide).
+% - `paper/context/style_guide.md`: applied throughout (no em dashes, no banned words, active voice, one claim per sentence, no filler openers or closers).
+%
+% No citation outside the Confirmed tier was needed for this section; no `[CITATION NEEDED]` markers were used.
+
+\section{Method}\label{sec:3}
+
+\subsection{Simulation framework}\label{sec:3.1}
+
+In the delivered runs, each agent initiated one exchange per simulated hour with a uniformly random partner, for 24 rounds per simulated day over 30 days. This cadence is recovered from the logged data; the exact loop implementation used on the collaborator's infrastructure is pending confirmation. This repository's own reference implementation (\path{src/simulation.py}) instead runs one round per simulated day, with each agent initiating exactly one exchange per day. The delivered ablation data do not match that cadence, and the diff that produced the hourly cadence on the collaborator's DGX has not been shared or reconciled with this repository as of writing.
+
+Within each round, one exchange (\path{src/exchange.py}) runs between an initiator and a partner for 2 to 5 turns, with the turn count drawn once per exchange and the two agents' utterances alternating. After each turn, the listening agent's memory absorbs the turn through the \texttt{AgentMemory} interface described in Section~\ref{sec:3.3}.
+
+Stance is scored after the exchange completes, by a separate LLM call that reads only the utterances of the agent being scored, never the partner's utterances (\path{src/annotator.py}). This restriction on what the annotator sees is intended to prevent the partner's argument content from directly biasing the recorded score. Both participants in an exchange are scored this way.
+
+Three design choices differ from LODAS \citep{cau2025selective}. First, in LODAS only the Discussant updates after an interaction, and it updates its own opinion by accepting, rejecting, or ignoring the Opponent's argument. Here, a separate annotator model scores both participants from their own utterances. Second, LODAS uses a seven-point scale, and we use five points. Third, LODAS debates the Ship of Theseus paradox, a topic chosen to minimise controversy, and we debate immigration policy, a politically divisive topic.
+
+The four conditions in this ablation share an identical pairing schedule and identical per-exchange turn counts, verified row by row against the delivered data. This is a common-random-numbers design: the sequence of who talks to whom, and for how many turns, is held fixed across conditions, so that differences in outcome can be attributed to memory content and to the language model's outputs conditioned on that memory, rather than to differences in who was paired with whom.
+
+\subsection{The stance clamp}\label{sec:3.2}
+
+After each exchange, the annotator LLM proposes a new Likert score for the scored agent. That proposed score is clamped against the agent's previous score before it is recorded:
+
+\begin{verbatim}
+clamped = max(previous.score - 1, min(previous.score + 1, parsed.score))
+\end{verbatim}
+
+An agent can therefore move at most one step per exchange, out of five possible stance labels ranging from -2 to +2. This matches the $\pm 1$ update rule of LODAS \citep{cau2025selective}. In our framework the rule has to be enforced on the annotator's output, and we added the clamp after an earlier, unconstrained run produced a single-exchange shift from one extreme of the scale to the opposite extreme, which we treated as a defect in the scoring mechanism rather than a plausible model of opinion change. No delivered update in the four-condition ablation moves a stance by more than one step, confirming that the clamp was active throughout the run.
+
+\subsection{Memory conditions}\label{sec:3.3}
+
+Agent memory is defined behind a single abstract interface, \texttt{AgentMemory} (\path{src/memory.py}), with two methods: \texttt{absorb()}, called after a turn the agent hears, and \texttt{get\_context()}, called to retrieve content for injection into the agent's next prompt. Two concrete implementations exist.
+
+\texttt{NullMemory} implements both methods as no-ops. It is used for the \cond{no\_kg} condition: an agent enters every exchange with no record of anything said in any prior exchange, by itself or by any partner.
+
+\texttt{GhostMemory} implements \texttt{absorb()} by extracting triplets via an LLM call, one call per active knowledge-graph dimension, and writing the extracted triplets to GhostKG through \path{manager.absorb_content()}. It implements \texttt{get\_context()} by retrieving relevant prior triplets from GhostKG and formatting them for injection into the next prompt. Which class is instantiated is decided once, at startup, in \path{simulation.py::_build_memory()}; no other file in the codebase branches on memory condition.
+
+\texttt{GhostMemory} takes a \texttt{dimensions} list that determines which knowledge-graph dimensions are active for a given condition:
+
+\begin{table}[htbp]
+\centering
+\small
+\caption{Knowledge-graph dimensions active in each memory condition.}
+\label{tab:dims}
+\begin{tabular}{lc}
+\toprule
+Condition & dimensions \\
+\midrule
+\cond{general\_only} & [``general''] \\
+\cond{tom\_only} & [``tom''] \\
+\cond{full\_kg} & [``general'', ``tom'', ``beliefs''] \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The term ``theory of mind,'' as used for the \texttt{tom} dimension in this codebase, refers to one specific thing: an inferred belief about what a specific conversation partner believes, extracted as a \path{(subject, predicate, object)} triplet tagged \texttt{dimension="tom"}. It is not used here in the general philosophical or cognitive-science sense. A \texttt{general}-dimension triplet instead encodes a fact about the topic stated in the exchange, independent of who holds it. A \texttt{beliefs}-dimension triplet encodes the speaker's own stated position, active only in \cond{full\_kg}.
+
+\subsection{GhostKG mechanics}\label{sec:3.4}
+
+Triplet extraction (\path{src/triplets.py}) runs one LLM call per active dimension after each turn a listening agent absorbs. The extraction prompt for each dimension asks for 0 to 5 triplets of the form \path{subject | predicate | object}, 3 to 8 words per part, restricted to ``only what is clearly stated, not inferred.'' Each extracted triplet is stored, on the project's own \texttt{Triplet} dataclass, as \path{(subject, predicate, object, dimension, round)}, where \texttt{round} records the simulated day the triplet was extracted on.
+
+Only \path{(subject, predicate, object)} crosses into GhostKG storage. The \texttt{dimension} field determines which extraction call produced the triplet and therefore what content it can later surface as, but it is \texttt{absorb\_content()}, accepting only the three-part triplet, that GhostKG actually writes. The \texttt{round} field is stripped before that call and is retained solely in the project's own logs, for analysis such as identifying which simulated day a fact was learned on; it is not an input to GhostKG's decay mechanism.
+
+GhostKG applies FSRS, a spaced-repetition scheduling algorithm, to triplet strength. Decay is keyed on the simulated clock, set via \path{manager.set_agent_time(agent_id, clock)}; older, less-reinforced triplets retrieve with lower weight over simulated time. This decay mechanism operates identically across \cond{general\_only}, \cond{tom\_only}, and \cond{full\_kg}, regardless of which dimensions are active for a given condition: it acts on whatever triplets exist for an agent, without regard to which dimension produced them. The FSRS parameters in use are GhostKG's defaults; this project has not tuned them. How often \texttt{set\_agent\_time()} was called during the delivered runs, per round or per day, is pending confirmation from the collaborator's diff. The GhostKG version installed in this repository is 0.2.0, which implements FSRS v6 with 21 default parameters (\path{ghost_kg/memory/fsrs.py}); whether the delivered DGX run used the same version is unconfirmed.
+
+\subsection{Population, topic, and stance scale}\label{sec:3.5}
+
+The population consists of 140 personas (\path{topics/immigration.py}), each with a unique name, age, occupation, and free-text description. Initial stance is tied to the persona description rather than assigned independently at random, following a truncated-Gaussian target distribution over the five-point scale: 14 Strongly Against, 28 Against, 56 Neutral, 28 In Favor, 14 Strongly In Favor.
+
+The topic is immigration policy. The agent system prompt gives each agent its name, age, occupation, political leaning, free-text persona, the topic string, and its current stance label, and instructs it that it ``may change your mind if you find their argument genuinely convincing, or you may push back if you disagree,'' explicitly telling it not to simply agree to be agreeable. The annotator prompt asks a separate LLM call to report the stance the agent expressed, not the annotator's own view, and to select one label from the five-point scale, which is defined as In Favor or Against ``the proposition.''
+
+The intended polarity, per the docstring of \path{topics/immigration.py}, is that In Favor means supporting restrictive immigration policy and Against means the opposite; far-right personas are seeded at Strongly In Favor under this convention. However, the topic string passed to both the agent and the annotator is only ``immigration policy'' (the delivered DGX data's \texttt{topic} column instead reads ``immigration''), and no prompt in the codebase ever states the proposition itself. Neither the agent generating an utterance nor the annotator scoring it is told what In Favor concretely means. Because of this, results in this paper are reported by scale label (In Favor / Against, as prompted) and not described as pro- or anti-immigration in either direction. The missing proposition is treated as a threat to construct validity in this design.
+
+\subsection{Metrics}\label{sec:3.6}
+
+Metric definitions follow \citet{cau2025selective} \citep{cau2025selective}, as implemented in \path{analysis/metrics.py}. Entropy is the Shannon entropy, in bits, of the population's distribution over the five stance labels at a given time point, $H(t)$. Effective clusters, C, is the effective number of distinct opinion clusters, $C = 1/\sum_i p_i^2$, computed from the same five-label distribution. Acceptance is defined as the scored agent moving strictly toward the partner's pre-exchange stance; move-away is the scored agent moving strictly away from it. Following Cau et al., we report acceptance as a function of the signed distance $\Delta x = x_{\mathrm{partner}} - x_{\mathrm{agent}}$, computed before the exchange \citep{cau2025selective}. Positive $\Delta x$ means the partner sits further toward In Favor than the scored agent. Selective agreement in their sense appears as acceptance that rises with $\Delta x$. We summarise its direction as the asymmetry $P(A \mid \Delta x = +k) - P(A \mid \Delta x = -k)$ for k = 1, 2. We also report acceptance and move-away rates by the absolute distance $d = |\Delta x|$, which measures sensitivity to nearby opinions separately from direction. Per-stance mobility reports the probability of any stance change, conditioned on the agent's stance before the exchange. Mean stance score is the population average of the numeric stance value (-2 to +2) at a given time point.
+
+The in-repo analysis script that computes these quantities from the delivered CSVs is \path{scripts/compute_paper_numbers.py}. We estimate uncertainty on exchange-level statistics with an agent-clustered bootstrap: 1,000 resamples of the 140 scored agents, drawn with replacement, within the single run of each condition. These intervals describe agent-to-agent variability inside one run. They do not describe run-to-run variability, since each condition in this ablation was run once, with one seed and one pairing schedule shared across all four conditions.
+
+\subsection{Model and infrastructure}\label{sec:3.7}
+
+The four-condition ablation was served via vLLM on the collaborator's DGX. The identity of the model actually served is \pending{model: pending confirmation from collaborator}. \path{scripts/DGX_RUNBOOK.md} recommends \path{meta-llama/Llama-3.1-8B-Instruct}, and this repository's own default configuration (\path{src/config.py}) points to a different model served through Ollama, but neither is confirmed as what ran on the DGX, and the delivered CSVs carry no model-identifying column.
+
+% ----------------------------------------------------------------------
+% Sources used (claim tracing for reviewers; not typeset)
+% - `paper/context/methodology_facts.md`: exchange cadence and the approved Methods wording (Open discrepancy and Partial resolution sections), the reference simulation loop in this repo, exchange/turn structure (`src/exchange.py`), the annotator restriction and the stance clamp formula (`src/annotator.py`), the `AgentMemory` interface, `NullMemory`, `GhostMemory`, and the dimensions table (`src/memory.py`), triplet extraction and the `round` field (`src/triplets.py`), FSRS decay mechanics and version facts, the metrics list (`analysis/metrics.py`), population facts (`topics/immigration.py`), prompts and stance-scale polarity (`src/prompts.py`, `src/config.py`, `topics/immigration.py`), and run facts (seed, pairing/turn-count identity across conditions, model uncertainty, GhostKG version).
+% - `paper/context/conditions_and_implementation.md`: the meaning of "theory of mind" in this codebase, and the description of what differs mechanically between `general_only`, `tom_only`, and `full_kg`.
+% - `paper/context/hypothesis_and_scope.md`: confirmation that the four-condition, 30-day, 140-agent design is the one delivered and in scope, and the instruction not to describe cadence as "once per day."
+% - `reports/full_ablation_summary.md`, Section 1: design facts recoverable from the delivered data (rounds per day, exchanges per round, pairing-schedule and turn-count identity across conditions, clamp confirmation, model column absent from the CSVs).
+% - `reports/full_ablation_summary.md`, Section 6.1: the stance-polarity construct problem, used for the wording in Section 3.5 on reporting by scale label rather than by pro-/anti-immigration framing.
+% - `paper/context/related_work_sources.md`: [cau2025selective] for the metric definitions, the +/-1 rule, and the LODAS design differences (from the full-text design details in that entry, added by the main thread).
+% - `paper/context/style_guide.md`: writing rules applied throughout (active voice, no em dashes, no banned words, one claim per sentence, plain-prose draft).
+%
+% No results-dependent numbers (entropy values, acceptance rates, mean stance scores) from Sections 2, 3.1-3.3 (outcomes), or the Appendix of `reports/full_ablation_summary.md` are included in this Method section; those belong to the Results section and were deliberately left out here per the task instructions.
+
+\section{Experimental Setup}\label{sec:4}
+
+\subsection{The ablation}\label{sec:4.1}
+
+We ran four conditions: \cond{no\_kg}, \cond{general\_only}, \cond{tom\_only}, and \cond{full\_kg}. Each condition used the same 140-agent population, the same random seed, and the same pairing schedule and per-exchange turn counts, verified row by row against the delivered data \src{R: full\_ablation\_summary.md, Section 1}. Only the memory content differed between conditions, as described in Section~\ref{sec:3.3}.
+
+Each condition ran for 30 simulated days of 24 rounds per day, 720 rounds in total. Every round contains 140 exchanges, one initiated by each agent, giving 100,800 exchanges per condition and 403,200 exchanges across the four conditions. Both participants in an exchange are scored by the annotator, giving 201,600 scored agent-updates per condition \src{R: full\_ablation\_summary.md, Section 1}.
+
+The ablation was served via vLLM on the collaborator's DGX. The identity of the model is \pending{model: pending confirmation from collaborator}; \path{scripts/DGX_RUNBOOK.md} recommends \path{meta-llama/Llama-3.1-8B-Instruct}, but the delivered CSVs carry no model-identifying column, and this has not been confirmed by the collaborator (Section~\ref{sec:3.7}).
+
+\subsection{What the ablation tests}\label{sec:4.2}
+
+The research question, stated before the results existed: does persistent, structured, decaying memory change the selective-agreement pattern that LLM agents exhibit in pairwise debate, relative to a memoryless baseline (Cau et al. 2025, LODAS framework) \citep{cau2025selective}?
+
+The hypothesis: structured memory of a partner's prior stated beliefs (theory-of-mind memory) reduces an agent's tendency toward unconditional agreement more than memory of facts alone. Combined memory (facts plus theory-of-mind plus self-belief tracking) produces the most stable opinions over time.
+
+We recorded the hypothesis and three outcomes that would support it in an internal project document before the results existed. The supporting outcomes were a flatter acceptance-by-distance curve for \cond{tom\_only} than for \cond{no\_kg} and \cond{general\_only}; the smallest entropy change over the run for \cond{full\_kg}; and \cond{general\_only} sitting between \cond{no\_kg} and \cond{tom\_only}, or not differing meaningfully from \cond{no\_kg}. We stated three outcomes as evidence against it: no knowledge-graph condition moving the acceptance curve relative to \cond{no\_kg}; \cond{tom\_only} and \cond{general\_only} producing statistically indistinguishable curves; or any knowledge-graph condition showing a larger entropy collapse than \cond{no\_kg}. A null result on any of these criteria was treated in advance as a publishable finding, not a failed experiment. Whether each criterion was met, and what the results show beyond these criteria, is reported in Section~\ref{sec:5}, not here.
+
+The criteria above use unsigned stance distance. Section~\ref{sec:5} also reports the directional measure \citet{cau2025selective} use in LODAS, acceptance as a function of signed distance $\Delta x = x_{\mathrm{partner}} - x_{\mathrm{agent}}$, since a curve can be flat on unsigned distance while still showing a directional bias on signed distance \citep{cau2025selective}.
+
+\subsection{Relation to the LODAS baseline design}\label{sec:4.3}
+
+Table~\ref{tab:1} compares this study's design to LODAS as described in \citet{cau2025selective} \citep{cau2025selective}.
+
+\begin{table}[htbp]
+\centering
+\small
+\caption{Design of LODAS \citep{cau2025selective} compared with this study.}
+\label{tab:1}
+\begin{tabularx}{\linewidth}{>{\raggedright\arraybackslash}p{0.28\linewidth}>{\raggedright\arraybackslash}X>{\raggedright\arraybackslash}X}
+\toprule
+Property & LODAS (Cau et al. 2025) & This study \\
+\midrule
+Scale points & 7 & 5 \\ \addlinespace
+Who updates & Discussant updates itself, no separate annotator & A separate annotator scores both participants \\ \addlinespace
+Topic & Ship of Theseus, with an explicit framing statement & Immigration policy, no stated proposition \\ \addlinespace
+Models & Mistral-7B-Instruct and Llama-3-8B & Pending confirmation \\ \addlinespace
+Runs & 10, averaged & 1 per condition \\ \addlinespace
+Agents & 140 & 140 \\ \addlinespace
+Horizon & 30 iterations of N pairwise interactions & 30 simulated days of 24 rounds of N exchanges \\ \addlinespace
+Memory & None & Four conditions: none, general facts, theory-of-mind, combined \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+The population size matches LODAS, so this study does not scale up the population \citep{cau2025selective}. The horizon differs: LODAS runs 30 iterations of N interactions, while this study runs 720 rounds of N exchanges, and scores both participants in each exchange. Each agent therefore accumulates far more scored updates here than in LODAS.
+
+\subsection{The pilot}\label{sec:4.4}
+
+Before the four-condition ablation, we ran a 10-day, \cond{no\_kg} pilot on llama3.2 via Ollama, with one exchange per agent per day, for 1,400 exchanges in total. The pilot exercised the checkpoint and resume pipeline later reused by the DGX ablation script. We do not pool the pilot's numbers with the four-condition ablation, and we do not report its numbers as results of this study, because it ran on a different backend, at a different cadence, and for a different length than the delivered ablation.
+
+\subsection{Not run in this paper}\label{sec:4.5}
+
+This study does not include a second topic, a neutral control topic, cross-model replication, or the annotator-context ablation (\cond{general\_only\_ctx}, \cond{tom\_only\_ctx}, \cond{full\_kg\_ctx}). These remain candidate follow-on work and are not reported here.
+
+% ----------------------------------------------------------------------
+% Sources used (claim tracing for reviewers; not typeset)
+% - `paper/context/hypothesis_and_scope.md`: the research question and hypothesis text (Sections "Research question" and "Hypothesis"), the support and against criteria ("What would count as support/against the hypothesis"), the four-condition design and population facts ("Experimental design"), the out-of-scope list ("Explicitly out of scope for this paper"), and the Addendum on the signed directional measure.
+% - `paper/context/methodology_facts.md`: model and infrastructure facts ("Run facts for the delivered ablation"), used to state the pending model identity and the vLLM serving detail.
+% - `paper/context/related_work_sources.md`: the Cau et al. (2025) entry, `[cau2025selective]`, for the LODAS design details (scale points, Discussant self-update, topic and framing, models, 10 runs, 140 agents and 30 iterations, signed dx) used in the comparison table.
+% - `paper/sections/03_method.md`: read in full to avoid restating or contradicting settled Method content (exchange structure, clamp, memory conditions, metrics).
+% - `reports/full_ablation_summary.md`, Section 1: the design facts recoverable from the delivered data (30 days, 24 rounds per day, 140 exchanges per round, 100,800 exchanges per condition, 403,200 total, 201,600 scored agent-updates per condition, identical pairing schedule and turn counts across conditions).
+% - `reports/full_ablation_summary.md`, Section 4: the pilot description (10-day, 1,400-exchange, llama3.2 via Ollama, one exchange per agent per day) and the instruction not to pool it with the ablation.
+% - `paper/context/style_guide.md`: writing rules applied throughout.
+%
+% No results numbers from Section 2, 3, 5, or 6 of `reports/full_ablation_summary.md` (entropy values, acceptance rates, drift figures) are used in this section; those belong to Section 5 per the task instructions.
+
+\section{Results}\label{sec:5}
+
+\subsection{Population-level outcomes}\label{sec:5.1}
+
+Table~\ref{tab:2} reports the stance distribution at day 0 and at day 30 for each condition, alongside the two population-level summary statistics: mean stance score, Shannon entropy H in bits, and the effective number of clusters C \src{R: full\_ablation\_summary.md, Section 2.1}.
+
+\begin{table}[htbp]
+\centering
+\small
+\caption{Stance distribution, day 0 and day 30.}
+\label{tab:2}
+\resizebox{\linewidth}{!}{%
+\begin{tabular}{lcccccccccc}
+\toprule
+Condition & SA & A & N & F & SF & Against side & In Favor side & Mean score & H (bits) & C \\
+\midrule
+All, day 0 & 14 & 28 & 56 & 28 & 14 & 42 & 42 & 0.000 & 2.1219 & 3.846 \\
+\cond{no\_kg}, day 30 & 6 & 48 & 21 & 65 & 0 & 54 & 65 & 0.036 & 1.6487 & 2.798 \\
+\cond{general\_only}, day 30 & 3 & 44 & 18 & 75 & 0 & 47 & 75 & 0.179 & 1.5065 & 2.483 \\
+\cond{tom\_only}, day 30 & 1 & 65 & 19 & 53 & 2 & 66 & 55 & -0.071 & 1.5740 & 2.649 \\
+\cond{full\_kg}, day 30 & 3 & 42 & 31 & 63 & 1 & 45 & 64 & 0.121 & 1.6908 & 2.924 \\
+\bottomrule
+\end{tabular}}
+\end{table}
+
+Table~\ref{tab:3} reports the entropy drop from day 0 to day 30, the entropy and cluster count averaged over days 1 through 30, and the share of scored agent-updates that change stance at all \src{R: full\_ablation\_summary.md, Section 2.2}.
+
+\begin{table}[htbp]
+\centering
+\small
+\caption{Entropy drop, run-averaged dispersion, and churn.}
+\label{tab:3}
+\begin{tabularx}{\linewidth}{>{\raggedright\arraybackslash}p{0.28\linewidth}>{\raggedright\arraybackslash}X>{\raggedright\arraybackslash}X>{\raggedright\arraybackslash}X>{\raggedright\arraybackslash}X}
+\toprule
+Condition & $H(0) - H(30)$, bits & Mean H, days 1-30 & Mean C, days 1-30 & Share of agent-updates with any stance change \\
+\midrule
+\cond{no\_kg} & 0.4732 & 1.6304 & 2.771 & 0.331 \\ \addlinespace
+\cond{general\_only} & 0.6154 & 1.4916 & 2.409 & 0.267 \\ \addlinespace
+\cond{tom\_only} & 0.5479 & 1.5833 & 2.701 & 0.336 \\ \addlinespace
+\cond{full\_kg} & 0.4311 & 1.6628 & 2.933 & 0.479 \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+In every condition, the Neutral share and both extreme labels collapse within day 1, that is, within the first 24 rounds; the distribution then fluctuates without a further monotone trend \src{R: full\_ablation\_summary.md, Section 2.2}. Figure~\ref{fig:entropy} plots entropy $H(t)$ at the end of each day from day 1 to day 30. Figure~\ref{fig:clusters} plots the effective cluster count C over the same days. Figure~\ref{fig:trajectories} plots the share of agents at each stance over time, per condition.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=\linewidth]{compare_entropy.png}
+\caption{Shannon entropy $H(t)$ of the five-label stance distribution at the end of each simulated day, days 1 to 30, for the four memory conditions.}
+\label{fig:entropy}
+\end{figure}
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=\linewidth]{compare_effective_clusters.png}
+\caption{Effective number of opinion clusters $C$ at the end of each simulated day, days 1 to 30.}
+\label{fig:clusters}
+\end{figure}
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=\linewidth]{compare_trajectories.png}
+\caption{Share of agents at each stance over the 30-day run, one panel per memory condition.}
+\label{fig:trajectories}
+\end{figure}
+
+\cond{general\_only} ends with the lowest entropy and fewest effective clusters at day 30, and has the lowest mean entropy and mean cluster count over the run; it is the most convergent condition \src{R: full\_ablation\_summary.md, Section 2.2}. \cond{full\_kg} ends with the highest entropy and cluster count, has the highest mean entropy and cluster count over the run, and shows the smallest entropy drop from day 0; it is the most dispersed condition \src{R: full\_ablation\_summary.md, Section 2.2}. \cond{full\_kg} also has by far the highest per-update churn: 47.9\% of its scored agent-updates change stance, against 26.7\% to 33.6\% in the other three conditions \src{R: full\_ablation\_summary.md, Section 2.2}.
+
+\subsection{Direction of drift}\label{sec:5.2}
+
+We report direction as movement along the In Favor / Against scale only, not as movement toward or away from a pro- or anti-immigration position, because the prompt given to both the agent and the annotator never states the underlying proposition (Method, Section~\ref{sec:3.5}).
+
+At day 30, \cond{general\_only} shows the largest shift toward In Favor: mean score +0.179, with 75 of 140 agents on the In Favor side (Table~\ref{tab:2}). \cond{tom\_only} is the only condition whose mean score ends below zero, at -0.071. \cond{no\_kg} ends near zero, at +0.036 \src{R: full\_ablation\_summary.md, Section 2.2}.
+
+Table~\ref{tab:4} reports where Neutral agents go: the probability that a Neutral agent's update moves it to In Favor versus to Against \src{R: full\_ablation\_summary.md, Section 2.3}.
+
+\begin{table}[htbp]
+\centering
+\small
+\caption{Neutral outflow.}
+\label{tab:4}
+\begin{tabular}{lcc}
+\toprule
+Condition & P(N to F) & P(N to A) \\
+\midrule
+\cond{no\_kg} & 0.437 & 0.438 \\
+\cond{general\_only} & 0.519 & 0.335 \\
+\cond{tom\_only} & 0.492 & 0.434 \\
+\cond{full\_kg} & 0.470 & 0.448 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\cond{general\_only} has the clearest asymmetry in Neutral outflow, toward In Favor. \cond{no\_kg} is the most symmetric \src{R: full\_ablation\_summary.md, Section 2.3}.
+
+The 10-day pilot on llama3.2 via Ollama showed a large left-leaning drift, with the left-leaning share roughly doubling over the run. That drift does not appear in the 30-day DGX \cond{no\_kg} run: at day 30, the Against side holds 54 agents and the In Favor side holds 65, with a mean score of +0.036 \src{R: full\_ablation\_summary.md, Section 4}.
+
+\subsection{Selective agreement: the signed measure}\label{sec:5.3}
+
+\citet{cau2025selective} define selective agreement on the signed distance $\Delta x = x_{\mathrm{partner}} - x_{\mathrm{agent}}$, and report that acceptance rises with $\Delta x$ \citep{cau2025selective}. We read the delivered data the same way before turning to the unsigned measure, since $\Delta x$ is the definition LODAS uses. Positive $\Delta x$ means the partner sits further toward In Favor than the scored agent.
+
+Table~\ref{tab:5} reports acceptance probability by signed distance at one and two steps \src{R: full\_ablation\_summary.md, Section 3.4}.
+
+\begin{table}[htbp]
+\centering
+\small
+\caption{Acceptance by signed distance $\Delta x$ (point estimate, n in parentheses).}
+\label{tab:5}
+\resizebox{\linewidth}{!}{%
+\begin{tabular}{lcccccc}
+\toprule
+Condition & $\Delta x = -3$ & $\Delta x = -2$ & $\Delta x = -1$ & $\Delta x = +1$ & $\Delta x = +2$ & $\Delta x = +3$ \\
+\midrule
+\cond{no\_kg} & 0.222 (3343) & 0.112 (33559) & 0.232 (28804) & 0.274 (28804) & 0.091 (33559) & 0.552 (3343) \\
+\cond{general\_only} & 0.250 (2251) & 0.103 (32799) & 0.184 (24521) & 0.360 (24521) & 0.096 (32799) & 0.596 (2251) \\
+\cond{tom\_only} & 0.263 (1947) & 0.132 (33928) & 0.249 (28740) & 0.301 (28740) & 0.098 (33928) & 0.557 (1947) \\
+\cond{full\_kg} & 0.457 (1617) & 0.236 (27927) & 0.319 (37531) & 0.386 (37531) & 0.299 (27927) & 0.578 (1617) \\
+\bottomrule
+\end{tabular}}
+\end{table}
+
+Table~\ref{tab:6} reports the directional asymmetry, $P(A \mid \Delta x = +k) - P(A \mid \Delta x = -k)$, with agent-clustered bootstrap 95\% intervals. These intervals, here and throughout, are within-run: each condition ran once, so they describe agent-to-agent variability inside that single run, not run-to-run variability \src{R: full\_ablation\_summary.md, Section 3.2}.
+
+\begin{table}[htbp]
+\centering
+\small
+\caption{Directional asymmetry, agent-clustered bootstrap 95\% intervals.}
+\label{tab:6}
+\begin{tabular}{lcc}
+\toprule
+Condition & $P(A \mid {+}1) - P(A \mid {-}1)$ & $P(A \mid {+}2) - P(A \mid {-}2)$ \\
+\midrule
+\cond{no\_kg} & +0.042 [+0.013, +0.073] & -0.022 [-0.040, -0.002] \\
+\cond{general\_only} & +0.176 [+0.145, +0.206] & -0.007 [-0.024, +0.009] \\
+\cond{tom\_only} & +0.052 [+0.018, +0.084] & -0.034 [-0.053, -0.015] \\
+\cond{full\_kg} & +0.067 [+0.040, +0.094] & +0.062 [+0.036, +0.089] \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Every condition shows a one-step directional bias: agents accept a partner on their In Favor side more readily than a partner on their Against side \src{R: full\_ablation\_summary.md, Section 3.4}. The bias is amplified about fourfold under \cond{general\_only} relative to \cond{no\_kg} (+0.176 versus +0.042), and \cond{general\_only}'s interval does not overlap any other condition's \src{R: full\_ablation\_summary.md, Section 3.4}. \cond{full\_kg} is the only condition positive at two steps, at +0.062 \src{R: full\_ablation\_summary.md, Section 3.4}. Figure~\ref{fig:acceptance} plots the same quantities over the full range of $\Delta x$.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=\linewidth]{compare_acceptance_distance.png}
+\caption{Acceptance probability $P(A \mid \Delta x)$ by signed opinion distance $\Delta x = x_{\mathrm{partner}} - x_{\mathrm{agent}}$, all four conditions. Values at $|\Delta x| \geq 3$ rest on few pairs and coincide with regression from the extremes (Section~\ref{sec:5.4}).}
+\label{fig:acceptance}
+\end{figure}
+
+The gap between $\Delta x = -3$ and $\Delta x = +3$ is not clean evidence of direction: those pairs are dominated by agents at the extremes, whose mobility differs sharply by starting stance (Section~\ref{sec:5.5}), so the $\Delta x = \pm 3$ comparison confounds direction with regression toward the centre \src{R: full\_ablation\_summary.md, Section 3.4}.
+
+\subsection{Sensitivity to distance: the unsigned measure}\label{sec:5.4}
+
+Table~\ref{tab:7} reports acceptance and move-away probabilities by unsigned distance $d = |\Delta x|$, with agent-clustered bootstrap 95\% intervals \src{R: full\_ablation\_summary.md, Section 3.2}.
+
+\begin{table}[htbp]
+\centering
+\small
+\caption{Acceptance by unsigned distance, agent-clustered bootstrap 95\% intervals.}
+\label{tab:7}
+\resizebox{\linewidth}{!}{%
+\begin{tabular}{lccccc}
+\toprule
+Condition & P(acc, $d = 1$) & P(acc, $d = 2$) & Ratio $d_2/d_1$ & P(away, $d = 1$) & P(away, $d = 2$) \\
+\midrule
+\cond{no\_kg} & 0.253 [0.243, 0.263] & 0.102 [0.092, 0.112] & 0.401 [0.373, 0.430] & 0.283 [0.268, 0.297] & 0.042 [0.032, 0.052] \\
+\cond{general\_only} & 0.272 [0.262, 0.282] & 0.099 [0.092, 0.107] & 0.366 [0.346, 0.386] & 0.233 [0.222, 0.244] & 0.028 [0.020, 0.037] \\
+\cond{tom\_only} & 0.275 [0.266, 0.283] & 0.115 [0.107, 0.123] & 0.417 [0.396, 0.438] & 0.283 [0.273, 0.294] & 0.025 [0.018, 0.032] \\
+\cond{full\_kg} & 0.353 [0.346, 0.360] & 0.267 [0.257, 0.277] & 0.758 [0.740, 0.775] & 0.268 [0.262, 0.274] & 0.032 [0.026, 0.039] \\
+\bottomrule
+\end{tabular}}
+\end{table}
+
+Acceptance falls from $d = 1$ to $d = 2$ in every condition \src{R: full\_ablation\_summary.md, Section 3.2}. The $d_2/d_1$ ratio sits between 0.366 and 0.417 in \cond{no\_kg}, \cond{general\_only}, and \cond{tom\_only}, and their intervals overlap or nearly overlap. Under \cond{full\_kg} the ratio is 0.758 [0.740, 0.775], well outside the range of the other three \src{R: full\_ablation\_summary.md, Section 3.2}. This flattening comes from more acceptance of distant partners, not from more resistance: move-away rates at $d = 2$ stay low in every condition, between 0.025 and 0.042 \src{R: full\_ablation\_summary.md, Section 3.2}.
+
+Acceptance at $d = 3$ and beyond is high in every condition, but those pairs almost always involve an agent at an extreme stance, and extreme agents move toward the centre in most of their updates (Section~\ref{sec:5.5}). Moving toward a distant partner and regressing toward the centre coincide for those pairs, so $d \geq 3$ acceptance rates do not isolate persuasion from regression to the centre \src{R: full\_ablation\_summary.md, Section 3.2}.
+
+\subsection{Mobility by starting stance}\label{sec:5.5}
+
+Table~\ref{tab:8} reports the probability of any stance change, conditioned on the agent's stance before the exchange \src{R: full\_ablation\_summary.md, Section 3.3}.
+
+\begin{table}[htbp]
+\centering
+\small
+\caption{Mobility by starting stance.}
+\label{tab:8}
+\begin{tabular}{lcccc}
+\toprule
+Starting stance & \cond{no\_kg} & \cond{general\_only} & \cond{tom\_only} & \cond{full\_kg} \\
+\midrule
+SA & 0.620 & 0.695 & 0.647 & 0.731 \\
+A & 0.237 & 0.195 & 0.215 & 0.367 \\
+N & 0.875 & 0.853 & 0.926 & 0.919 \\
+F & 0.178 & 0.139 & 0.199 & 0.293 \\
+SF & 0.939 & 0.947 & 0.964 & 0.920 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The moderate stances, Against and In Favor, are the stickiest in every condition \src{R: full\_ablation\_summary.md, Section 3.3}. Strongly In Favor agents leave that stance in more than 90\% of their updates in every condition \src{R: full\_ablation\_summary.md, Section 3.3}. Strongly Against agents leave that stance in 62\% to 73\% of their updates \src{R: full\_ablation\_summary.md, Section 3.3}. Strongly Against is least mobile under \cond{no\_kg}, at 0.620, and more mobile under every memory condition \src{R: full\_ablation\_summary.md, Section 3.3}.
+
+\subsection{The hypothesis, criterion by criterion}\label{sec:5.6}
+
+Table~\ref{tab:9} reproduces the outcome recorded against each criterion we stated before the results existed (Section~\ref{sec:4.2}) \src{hypothesis\_and\_scope.md, "Outcome", "Criterion by criterion"}.
+
+\begin{table}[htbp]
+\centering
+\small
+\caption{Criteria stated in advance, against the delivered results.}
+\label{tab:9}
+\begin{tabularx}{\linewidth}{>{\raggedright\arraybackslash}p{0.28\linewidth}>{\raggedright\arraybackslash}X>{\raggedright\arraybackslash}X}
+\toprule
+Criterion stated in advance & Result & Verdict \\
+\midrule
+Support: \cond{tom\_only} has a flatter acceptance-by-distance curve than \cond{no\_kg} and \cond{general\_only} & $d_2/d_1$ acceptance ratio: \cond{tom\_only} 0.417 [0.396, 0.438], \cond{no\_kg} 0.401 [0.373, 0.430], \cond{general\_only} 0.366 [0.346, 0.386] & Not supported. \cond{tom\_only} is indistinguishable from \cond{no\_kg} \\ \addlinespace
+Support: \cond{full\_kg} has the smallest entropy change over the run & Entropy drop, day 0 to 30: \cond{full\_kg} 0.431, \cond{no\_kg} 0.473, \cond{tom\_only} 0.548, \cond{general\_only} 0.615 bits & Met as operationalised, but see the stability discussion below \\ \addlinespace
+Support: \cond{general\_only} sits between \cond{no\_kg} and \cond{tom\_only}, or does not differ from \cond{no\_kg} & Acceptance curve close to \cond{no\_kg}; population outcome is the most convergent of all four & Mixed. No effect on the curve, largest effect on convergence \\ \addlinespace
+Against: no KG condition moves the acceptance curve relative to \cond{no\_kg} & \cond{full\_kg} ratio 0.758 [0.740, 0.775] & Not met. \cond{full\_kg} clearly moves it \\ \addlinespace
+Against: \cond{tom\_only} and \cond{general\_only} curves indistinguishable & $d = 1$ 0.275 vs 0.272; $d = 2$ 0.115 vs 0.099; ratio intervals do not overlap (0.417 vs 0.366) but both sit near \cond{no\_kg} & Largely met. Neither single-dimension memory changes selective agreement much \\ \addlinespace
+Against: some KG condition has a larger entropy collapse than \cond{no\_kg} & \cond{general\_only} (0.615) and \cond{tom\_only} (0.548) both exceed \cond{no\_kg} (0.473) & Met for \cond{general\_only} and \cond{tom\_only} \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\cond{full\_kg} meets the entropy criterion as it was operationalised: it shows the smallest drop in entropy from day 0 to day 30. On every other measure in this section, \cond{full\_kg} is the least stable condition. It has the highest mean entropy and mean cluster count over the run, the highest churn (47.9\% of agent-updates change stance), and the flattest acceptance-by-distance curve, produced by accepting distant partners more than any other condition (Sections~\ref{sec:5.1}, \ref{sec:5.4}). The hypothesis used the smallest entropy change as its test of ``the most stable opinions over time.'' \cond{full\_kg} passes that specific test while being the most fragmented condition on average over the run, not only at the end. This is a reversal on the stability construct the hypothesis was meant to capture, not a confirmation of it.
+
+The hypothesis assigned the largest expected effect to theory-of-mind memory: memory of a partner's prior stated beliefs, expected to reduce unconditional agreement more than memory of facts alone. \cond{tom\_only} does not change the shape of the acceptance curve relative to \cond{no\_kg}: its $d_2/d_1$ ratio interval overlaps \cond{no\_kg}'s (Table~\ref{tab:7}), and its one-step directional asymmetry (+0.052 [+0.018, +0.084]) overlaps \cond{no\_kg}'s (+0.042 [+0.013, +0.073]) (Table~\ref{tab:6}). Its share of agent-updates that change stance, 0.336, is the closest of the three memory conditions to \cond{no\_kg}'s 0.331 (Table~\ref{tab:3}). \cond{tom\_only} does shift the level of acceptance slightly: at $d = 1$ it is 0.275 [0.266, 0.283] against 0.253 [0.243, 0.263] for \cond{no\_kg} (Table~\ref{tab:7}). Theory-of-mind memory therefore produces the smallest behavioural change of the three memory conditions on the measures the hypothesis named, the opposite of the prediction.
+
+\subsection{Language-level analyses supplied by a collaborator (provisional)}\label{sec:5.7}
+
+A collaborator supplied additional language-level numbers, computed outside this repository by a pipeline whose analysis code has not been released. Table~\ref{tab:10} reports only the fallacy-rate, sentiment-ordering, and concept-overlap figures from that report \src{X: full\_ablation\_summary.md, Section 5}.
+
+\begin{table}[htbp]
+\centering
+\small
+\caption{Externally supplied language-level numbers, provisional.}
+\label{tab:10}
+\begin{tabularx}{\linewidth}{>{\raggedright\arraybackslash}p{0.42\linewidth}>{\raggedright\arraybackslash}X}
+\toprule
+Claim & Value \\
+\midrule
+Turns with at least one flagged fallacy, \cond{full\_kg} & 38.9\% \\ \addlinespace
+Turns with at least one flagged fallacy, \cond{no\_kg} & 61.1\% \\ \addlinespace
+Sentiment ordering & \cond{full\_kg} most negative, \cond{general\_only} most positive (no numeric values given) \\ \addlinespace
+Shared concepts in the In Favor camp at day 30, \cond{full\_kg} vs \cond{tom\_only} & 339 vs 102 \\ \addlinespace
+Same-camp concept overlap across conditions & 14\% to 26\% \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Several directional claims from the same external report do not reproduce against the raw data in this repository, including its claim about which condition shows the strongest net swing toward In Favor and its claim about how Neutral agents split at the end of the run \src{R: full\_ablation\_summary.md, Section 6}. For that reason, none of the numbers in Table~\ref{tab:10} carries weight in the conclusions of this paper.
+
+\pending{pending: collaborator to confirm provenance and release analysis code; drop 5.7 if not available}
+
+% ----------------------------------------------------------------------
+% Sources used (claim tracing for reviewers; not typeset)
+% - `reports/full_ablation_summary.md`, Section 1: design facts (rounds per day, exchanges per round, identical pairing schedule and turn counts across conditions), used for framing throughout.
+% - `reports/full_ablation_summary.md`, Section 2.1: the day-0/day-30 distribution table (Table 2 here).
+% - `reports/full_ablation_summary.md`, Section 2.2: the entropy-drop, mean-H, mean-C, and churn table (Table 3), and the readings on convergence (general_only) and dispersion (full_kg).
+% - `reports/full_ablation_summary.md`, Section 2.3: the Neutral outflow table (Table 4).
+% - `reports/full_ablation_summary.md`, Section 4: the pilot's left-drift description and its absence from the 30-day no_kg run.
+% - `reports/full_ablation_summary.md`, Section 3.4 and its Appendix A mirror: the signed-distance acceptance table (Table 5) and the directional-asymmetry table with bootstrap intervals (Table 6).
+% - `reports/full_ablation_summary.md`, Section 3.1-3.2 and Appendix A: the unsigned acceptance-by-distance table with bootstrap intervals (Table 7), and the d >= 3 confound caveat.
+% - `reports/full_ablation_summary.md`, Section 3.3: the mobility-by-starting-stance table (Table 8).
+% - `reports/full_ablation_summary.md`, Section 5 and Section 6: the externally supplied numbers used in Table 10, and the spot-check finding that several external directional claims do not reproduce.
+% - `paper/context/hypothesis_and_scope.md`, "Outcome" section: the criterion-by-criterion table (Table 9), the stability-reversal framing, and the instruction on how to describe the tom_only finding, and the reminder not to use the labels "Information Paradox" or "Memory Asymmetry Principle" (neither is used here).
+% - `paper/context/hypothesis_and_scope.md`, "Addendum": guidance for presenting the signed measure before the unsigned measure, and the "about fourfold" wording, reused verbatim.
+% - `paper/sections/03_method.md`, Section 3.5 and 3.6: the reason direction is reported by scale label only, and the metric definitions (entropy, effective clusters, acceptance, signed dx) referenced rather than restated.
+% - `paper/sections/04_experiments.md`: consistent terminology (condition names, round/day structure) carried over from the experimental setup section.
+% - `paper/context/related_work_sources.md`: `[cau2025selective]` for the signed-distance definition of selective agreement, cited only for that claim.
+% - `paper/context/style_guide.md`: writing rules applied throughout (active voice, no em dashes, no banned words, one claim per sentence).
+%
+% Figures referenced (not generated by this draft; files as delivered in the repo): `reports/figures/compare_entropy.png` (Figure 1), `reports/figures/compare_effective_clusters.png` (Figure 2), `reports/figures/compare_trajectories.png` (Figure 3), `reports/figures/compare_acceptance_distance.png` (Figure 4).
+
+\section{Discussion}\label{sec:6}
+
+\subsection{What kind of memory matters}\label{sec:6.1}
+
+The research question asked whether persistent, structured, decaying memory changes the selective-agreement pattern LLM agents show in pairwise debate, relative to a memoryless baseline\src{hypothesis\_and\_scope.md, "Research question"}. The results in Sections~\ref{sec:5.1} to \ref{sec:5.4} answer yes, but not through the mechanism the hypothesis named, and not uniformly across the three memory conditions.
+
+Facts-only memory (\cond{general\_only}) produces the most convergent population of all four conditions: the lowest entropy and fewest effective clusters, both at day 30 and averaged over the run (Section~\ref{sec:5.1}). It also produces the strongest directional acceptance bias, about four times the \cond{no\_kg} value at one step (Section~\ref{sec:5.3}). Combined memory (\cond{full\_kg}) produces the opposite population shape: the highest churn of any condition, 47.9\% of scored agent-updates changing stance against 26.7\% to 33.6\% elsewhere, and the least selective acceptance curve, with a $d_2/d_1$ ratio of 0.758 against 0.366 to 0.417 in the other three conditions (Section~\ref{sec:5.1}, \ref{sec:5.4}). Partner-belief memory (\cond{tom\_only}) changes little: its acceptance curve and directional asymmetry both overlap \cond{no\_kg}'s, and its churn rate is the closest of the three memory conditions to \cond{no\_kg}'s (Section~\ref{sec:5.1}, \ref{sec:5.4}).
+
+We read this as follows: what an agent remembers, more than whether it remembers at all, shapes the population outcome, and different content types push the population in different, in some cases opposite, directions. The hypothesis expected the theory-of-mind dimension to carry the largest effect. The data instead assign the largest effects to the general dimension (on convergence and directional bias) and to the combination of all three dimensions (on churn and unselective acceptance), while the theory-of-mind dimension alone carries the smallest effect of the three.
+
+\subsection{Why \cond{general\_only} might amplify the directional bias}\label{sec:6.2}
+
+\cond{general\_only}'s triplet extraction pulls facts stated in conversation and re-injects them into later prompts under the header ``what you remember from previous conversations''\src{methodology\_facts.md, "Prompts and the stance scale"}. One untested candidate explanation for the fourfold amplification of the directional asymmetry (Section~\ref{sec:5.3}) is that the facts an agent accumulates over 30 days are not a neutral sample of everything said to it. If extracted general-dimension triplets lean toward one side of the scale more often than the other, an agent's own retrieved memory content could compound that lean each time it is retrieved, independent of anything the current partner says.
+
+This study cannot test that explanation. The per-agent knowledge graphs and the underlying transcripts from the delivered runs are not present in this repository; only the exchange-level CSVs analysed in Section~\ref{sec:5} were delivered. The test this would require is a direct characterisation of the knowledge-graph contents from the delivered runs' databases: triplet counts per agent and per dimension, the distribution of predicate types, and whether retrieved general-dimension content leans toward In Favor or Against more often than chance. Until that data is obtained, the amplification in \cond{general\_only} should be reported as an observed effect with an unresolved mechanism, not attributed to any specific property of triplet content.
+
+\subsection{Why \cond{full\_kg} churns}\label{sec:6.3}
+
+\cond{full\_kg}'s churn and its flattened acceptance curve (Sections~\ref{sec:5.1}, \ref{sec:5.4}) also admit more than one untested candidate explanation. First, \cond{full\_kg} injects three dimensions of context into every prompt instead of one, which is a larger and more varied block of retrieved text than either single-dimension condition receives; a longer, more heterogeneous prompt could itself produce more varied model outputs, independent of any persuasion mechanism. Second, the beliefs dimension is active only in \cond{full\_kg} and re-injects the agent's own past stated positions\src{methodology\_facts.md, "Memory conditions"}; reintroducing an agent's own prior stance into its own prompt is a plausible source of instability that this design has never isolated from the other two dimensions. Third, an annotator effect is possible: if \cond{full\_kg}'s added context produces longer or more varied utterances, and the annotator's stance judgment is sensitive to utterance length or variety rather than to stance content alone, more apparent movement could be partly an artifact of scoring rather than of agent-level persuasion.
+
+The current design cannot separate these three candidates, nor can it separate agent-level persuasion from annotator sensitivity in general. The annotator reads only the scored agent's own utterances and no memory context (Section~\ref{sec:3.1}), so it cannot distinguish a genuine change of mind from a change in how an agent talks. This is a limitation of the annotation design, discussed in Section~\ref{sec:7}, not a finding about memory.
+
+\subsection{The prediction and its reversal}\label{sec:6.4}
+
+The hypothesis predicted that combined memory would produce the most stable opinions over time, operationalised in advance as the smallest entropy change from day 0 to day 30\src{hypothesis\_and\_scope.md, "What would count as support"}. \cond{full\_kg} meets that specific criterion: its entropy drop is 0.431 bits, smaller than \cond{no\_kg}'s 0.473, \cond{tom\_only}'s 0.548, and \cond{general\_only}'s 0.615 (Section~\ref{sec:5.1}). On every other measure of stability reported in Section~\ref{sec:5.1}, \cond{full\_kg} is the least stable condition: the highest churn, the highest mean entropy across days 1 to 30, and the highest mean effective cluster count across the same window.
+
+The conflict comes from the criterion. An entropy-change measure compares the population's distribution shape at two time points. It cannot distinguish a population made of individually stable agents who rarely change stance from a population made of individually churning agents whose net movements cancel out and leave the aggregate distribution similarly diverse at the end as in the middle. \cond{full\_kg} fits the second pattern: 47.9\% of its scored updates change stance, yet its population distribution stays the most dispersed of the four conditions. The criterion we stated in advance could not see this, because it was defined at the population level while the construct it was meant to proxy, individual opinion stability, lives at the agent level.
+
+The reversal is informative. It shows that ``stable population distribution'' and ``stable individual opinions'' are not the same construct, and that a hypothesis stated in terms of one can be technically satisfied while being substantively false for the other.
+
+\subsection{Relation to LODAS}\label{sec:6.5}
+
+\citet{cau2025selective} report that agents more readily accept opinions that are more agreeable relative to the discussion's framing statement, so that acceptance rises with signed distance. They also describe their Llama agents as showing ``a form of bounded confidence,'' a greater susceptibility to nearby opinions \citep{cau2025selective}. Two comparisons follow from Section~\ref{sec:5}.
+
+First, the one-step directional acceptance bias reported here (Section~\ref{sec:5.3}) appears in every condition, including \cond{no\_kg}, which has no memory at all. This is a different experimental setup from Cau et al.'s: a five-point scale rather than seven, a separate annotator rather than self-updating Discussants, a divisive topic (immigration policy) rather than a low-controversy one, and no stated proposition for either the agent or the annotator (Sections~\ref{sec:3.1}, \ref{sec:3.5}). Because this design has no stated proposition, the direction reported here is a shift along an unanchored scale, not a shift toward or away from a specified position. The two directional findings, ours and Cau et al.'s, are analogous in that both show acceptance varying with signed distance, but they are not the same measurement, and the paper does not claim they are.
+
+Second, the unsigned drop in acceptance from $d = 1$ to $d = 2$ seen in every condition here (Section~\ref{sec:5.4}) resembles the pattern Cau et al.\ describe as bounded confidence for Llama agents. This resemblance is noted as an interpretation, not treated as a replication, given the design differences above.
+
+The 10-day pilot run showed a large left-leaning drift that does not appear in the 30-day \cond{no\_kg} run (Section~\ref{sec:5.2}). Its cause cannot be attributed to anything in this paper's design, because the backend (Ollama versus vLLM), the exchange cadence, and the run length all differ between the pilot and the delivered ablation, and no single one of those differences can be isolated with the data available.
+
+\subsection{What the argument needs next}\label{sec:6.6}
+
+Following the collaborator's guidance to plan only the experiments the paper's current claims require, four experiments would each secure a specific claim made above, in priority order.
+
+First, repeated seeds per condition. Every between-condition comparison in this paper compares a single run to a single run (Section~\ref{sec:3.6}, \ref{sec:5.3}), so every claim in Sections~\ref{sec:6.1} through 6.4 rests on one draw of pairing schedule and model output per condition. Repeated seeds would show whether the differences reported between \cond{general\_only}, \cond{tom\_only}, and \cond{full\_kg} hold across runs or reflect this particular seed.
+
+Second, the same four-condition ablation run with an explicitly stated proposition, and, following the LODAS design, run under both a positive and a negative framing of that proposition. This would test whether \cond{general\_only}'s amplification of the directional bias (Section~\ref{sec:6.2}) tracks the framing, which would support a framing-driven account, or persists regardless of framing, which would point elsewhere.
+
+Third, knowledge-graph and transcript analysis of the existing delivered runs. This is the test named in Section~\ref{sec:6.2} for the facts-lean explanation of \cond{general\_only}'s bias. It requires only the per-agent databases and transcripts from the runs already delivered, not a new simulation.
+
+Fourth, an annotator control for \cond{full\_kg}'s churn, for example re-scoring a sample of \cond{full\_kg} exchanges with an annotator given partner context, or comparing stance changes within utterances of matched length, to test the annotator-sensitivity candidate named in Section~\ref{sec:6.3}.
+
+A second topic and a cross-model replication would matter for how far these findings generalise, but neither is required to support the claims made in this paper as currently scoped, since those claims are stated about this topic and this (unconfirmed) model only (Section~\ref{sec:7}).
+
+% ----------------------------------------------------------------------
+% Sources used (claim tracing for reviewers; not typeset)
+% - `paper/context/hypothesis_and_scope.md`: the research question, the hypothesis and its stability criterion, stated in advance, the outcome/criterion-by-criterion table and stability-reversal framing, the instruction not to use "Information Paradox" or "Memory Asymmetry Principle," and the LODAS design-difference notes used in 6.5.
+% - `paper/context/methodology_facts.md`: the memory-condition dimensions table, the description of `GhostMemory`/triplet extraction and the "what you remember" prompt header used in 6.2 and 6.3, and the annotator restriction (reads only the scored agent's own utterances) used in 6.3.
+% - `paper/context/related_work_sources.md`: `[cau2025selective]` for the LODAS directional-acceptance and bounded-confidence findings cited in 6.5, used only within that entry's stated support scope.
+% - `paper/sections/05_results.md`, Sections 5.1 to 5.4: all numeric claims (entropy, cluster count, churn rate, acceptance ratios, directional asymmetry values) used throughout 6.1 to 6.4.
+% - `paper/sections/03_method.md`, Sections 3.5 to 3.7: the annotator design, the unstated-proposition problem, and the model/topic scope referenced in 6.3, 6.5, and 6.6.
+% - `paper/sections/07_limitations.md`: referenced, not duplicated, for the annotator limitation (6.3), the single-seed limitation (6.6), and the model/topic scope limitation (6.6).
+% - No new numbers were taken from `reports/full_ablation_summary.md` beyond what already appears in `paper/sections/05_results.md`; it was read only to check consistency, per the task instructions.
+
+\section{Limitations}\label{sec:7}
+
+We ran each of the four memory conditions once, with a single random seed. The bootstrap intervals reported in Section~\ref{sec:3} (agent-clustered, 1,000 resamples of the 140 scored agents) describe variability across agents within that one run of each condition. They do not describe what would happen if we reran a condition with a different seed. A between-condition difference that looks precise in our intervals could still be a property of this particular seed rather than of the memory mechanism. LODAS averaged every result over 10 independent runs \citep{cau2025selective}, and our single-run design is weaker than that baseline on this point.
+
+We ran every condition on one topic, immigration policy. We have no second topic and no neutral control topic to check whether the patterns we report are specific to immigration or would appear on a topic without the same directional pull. The paper's scope is explicitly limited to this one topic, and nothing here generalizes across topics without further runs.
+
+We ran every condition on one model family. The model served on the DGX infrastructure that produced the 30-day results is \pending{model: pending confirmation}; \path{scripts/DGX_RUNBOOK.md} recommends \path{meta-llama/Llama-3.1-8B-Instruct}, but the actual model has not been confirmed. An earlier 10-day pilot used llama3.2 via Ollama, at a different exchange cadence (one exchange per agent per day rather than one per simulated hour). We do not pool the pilot with the 30-day results, and we do not draw conclusions that require the two to agree.
+
+The prompts never state a proposition for the immigration topic. The agent system prompt and the annotator prompt give agents and the annotator a topic string but not a claim to agree or disagree with. \path{topics/immigration.py} intends In Favor to mean support for restrictive immigration policy, with far-right personas seeded at Strongly In Favor, but neither the agents generating utterances nor the annotator scoring them are ever told this. In Favor and Against therefore have no fixed meaning to the systems producing our data; they are labels attached to a scale whose referent was never specified. Any directional finding we report, such as which condition shifts the population toward In Favor, describes a shift along an unanchored scale. It cannot be read as a shift toward or away from a specific policy position, and it must not be described as pro- or anti-immigration.
+
+Our stance scores come from a separate LLM call reading only the scored agent's own utterances, not from any external ground truth about what the agent believes. LODAS instead lets the Discussant update its own opinion \citep{cau2025selective}, so this annotator is a design difference from the baseline, not a shared feature. The annotator is a model judgment, and errors or biases in that judgment propagate into every metric downstream of it. The annotator also sees no memory context, so a change in stance that an agent carries only in its memory, and does not voice in the exchange, is invisible to the score. We did not run the annotator-context ablation (\cond{general\_only}\_ctx, \cond{tom\_only}\_ctx, \cond{full\_kg}\_ctx), which would test whether giving the annotator limited visibility into the partner's argument changes the scored outcome. That ablation is out of scope for this paper.
+
+The annotator's output is clamped so that no single exchange can move an agent's score by more than one step. This clamp was added after an earlier unconstrained run produced single-exchange jumps from one end of the five-point scale to the other, which we treated as a defect in scoring rather than a plausible account of real opinion change. The clamp shapes every dynamic we report. It also interacts with the edges of the scale. An agent at Strongly Against or Strongly In Favor can only move toward the centre, and pairs at distance three or four almost always include such an agent. The high acceptance values at those distances therefore coincide with regression from the extremes toward the centre. Distance-four pairs are also rare: 90 in \cond{no\_kg}, 40 in \cond{general\_only}, 34 in \cond{tom\_only}, and 48 in \cond{full\_kg}. We do not treat the $d \geq 3$ acceptance values as evidence of persuasion independent of this regression effect.
+
+The hourly exchange cadence recovered from the delivered data, 24 rounds per simulated day for 30 days, is confirmed at the level of the CSVs themselves: the simulated clock advances by one hour per round, and each of the 140 agents initiates exactly one exchange per round. The loop implementation on the collaborator's infrastructure that produced this cadence is not confirmed; this repository's own \path{src/simulation.py} implements one exchange per agent per simulated day, not per hour, and the diff that would reconcile the two has not been shared. This matters beyond bookkeeping because GhostKG's FSRS decay is keyed to the simulated clock via \texttt{set\_agent\_time()}. How often the delivered runs advanced each agent's GhostKG clock, per round or per day, determines how much decay separates one exchange from the next. Until the loop is confirmed, we cannot state how much forgetting any memory condition actually experienced over the run.
+
+The FSRS parameters governing memory decay are GhostKG's defaults; we did not tune them for this task. FSRS was built and validated for spaced-repetition flashcard scheduling, a setting with a defined notion of successful recall. Whether its notion of decay strength is an appropriate model for how socially situated belief memory should fade is untested here, and our results cannot speak to whether different decay parameters would change the pattern of selective agreement or opinion stability we report.
+
+Our population is 140 agents paired uniformly at random each round, with no network structure. Every agent has an equal chance of meeting every other agent. Our results therefore say nothing about how these dynamics would look on a network with clustering or homophily, a dimension the classical opinion dynamics literature treats as consequential \citep{castellano2009statistical}.
+
+We wrote down our hypothesis and its success criteria in an internal project document before the 30-day results existed. This was not a formal, time-stamped pre-registration. Its operational criterion for opinion stability was the smallest entropy change over the run. \cond{full\_kg} meets that criterion. On every other measure available to us, \cond{full\_kg} is the least stable condition: it has the highest share of agent-updates that change stance, the highest mean entropy and effective-cluster count across days 1 to 30, and the highest final entropy and cluster count. The entropy-change criterion we chose in advance turned out to be a poor proxy for the construct it was meant to measure. We do not count the criterion's technical satisfaction as support for the hypothesis.
+
+A collaborator ran a separate analysis of the exchange transcripts covering sentiment, fallacy detection, and conceptual-core overlap, summarized as externally supplied [X] numbers in \path{reports/full_ablation_summary.md}, Section~\ref{sec:5}. The classifiers, checkpoints, thresholds, and conceptual-core procedure behind those numbers are not present in this repository and are not reproducible from our code. When we checked the reproducible [R] numbers against several of that report's directional claims, in \path{reports/full_ablation_summary.md}, Section~\ref{sec:6}, some did not hold: the claim that \cond{full\_kg} shows the strongest net swing toward In Favor is not reproduced, since \cond{general\_only} shows the larger In Favor gain and the larger mean-score shift; the claim that \cond{tom\_only} is the only condition with an even Neutral split is not reproduced, since \cond{no\_kg} is more even; and the claim that strongly-favorable positions resist persuasion regardless of memory contradicts both the report's own cited figure and our [R] mobility numbers, which show Strongly In Favor as the least stable stance in every condition. Given this rate of non-reproduction, we report the [X] numbers, where we report them at all, as provisional and separately labeled, not as findings of this paper.
+
+% ----------------------------------------------------------------------
+% Sources used (claim tracing for reviewers; not typeset)
+% - `paper/context/hypothesis_and_scope.md`: seed and single-run design, single-topic scope, out-of-scope items (cross-model, cross-topic, annotator-context ablation, network topology), the pre-registered stability criterion and its reversal, the "must not" list on In Favor/Against labeling.
+% - `paper/context/methodology_facts.md`: exchange cadence and its unconfirmed loop implementation, the +/-1 clamp mechanism and its rationale, FSRS decay keyed to `set_agent_time()` and untuned default parameters, uniform random pairing and population size, prompt/annotator polarity facts, unconfirmed DGX model.
+% - `paper/context/related_work_sources.md`: citation keys used (`cau2025selective`, `castellano2009statistical`), both Confirmed tier. LODAS design facts (10 runs, self-update by the Discussant) come from the full-text details recorded in the cau2025selective entry.
+% - `reports/full_ablation_summary.md`, Sections 1, 4, 5, and 6: bootstrap interval scope, distance-4 sample sizes, entropy/cluster/churn numbers for full_kg vs. other conditions, the pilot-vs-DGX non-pooling note, the [X] externally supplied numbers and their non-reproduction against [R] numbers.
+
+\section{Conclusion}\label{sec:8}
+
+We ran a four-condition memory ablation on the LODAS design \citep{cau2025selective}, varying only what an agent remembers: no memory, facts extracted from conversation, inferred beliefs about the specific partner, or all three combined with the agent's own stated positions. All four conditions used the same population of 140 agents, the same 30-day simulated run, and the same pairing schedule.
+
+Memory content changed the population outcome, but not in the way the hypothesis predicted. Facts-only memory produced the most convergent population of the four conditions and amplified the one-step directional acceptance bias to about four times the no-memory value. Combined memory produced the opposite pattern: the highest churn of any condition and the least selective acceptance curve. Partner-belief memory, the dimension the hypothesis assigned the largest expected effect, changed little relative to no memory on either measure. The hypothesis predicted that theory-of-mind memory would do the most to reduce unconditional agreement and that combined memory would produce the most stable opinions over time. The results reverse both parts of that ordering: theory-of-mind memory does the least, and combined memory is the least stable condition on every other stability measure we report, although it meets the entropy-change criterion stated in advance.
+
+These findings describe one run of each condition, one topic with no proposition stated to the agents or the annotator, and one language model whose identity on the DGX infrastructure remains unconfirmed. No comparison in this paper can yet separate a memory-content effect from an effect of this particular seed. The directional findings describe movement along an unanchored scale, not toward or away from any specific immigration policy, and none of the findings extends to models beyond the one that produced this data. Section~\ref{sec:7} sets out these limitations in full.
+
+Section~\ref{sec:6.6} sets the next steps in priority order. Repeated seeds per condition come first, to test whether the reported differences hold across runs. Second is the same ablation with an explicitly stated proposition, under both a positive and a negative framing. Third, an analysis of the knowledge graphs and transcripts from the runs already delivered would test the facts-lean explanation for \cond{general\_only}'s directional bias. Fourth, an annotator control would test whether \cond{full\_kg}'s churn reflects opinion change or the annotator's sensitivity to longer, more varied utterances.
+
+% ----------------------------------------------------------------------
+% Sources used (claim tracing for reviewers; not typeset)
+% - `paper/context/hypothesis_and_scope.md`: the experimental design (four conditions, 140 agents, 30 days, shared pairing schedule, shared seed), the hypothesis statement and its stability and theory-of-mind predictions.
+% - `paper/sections/06_discussion.md`, Section 6.1: the restated findings on general_only's convergence and directional bias, full_kg's churn and unselective acceptance, and tom_only's near-null effect.
+% - `paper/sections/06_discussion.md`, Section 6.4: the framing of the stability reversal, full_kg meeting the pre-registered entropy criterion while being the least stable condition on every other measure.
+% - `paper/sections/06_discussion.md`, Section 6.6: the four-item priority list for next steps, taken in the order given.
+% - `paper/sections/07_limitations.md`: the single-run-per-condition, single-topic, unstated-proposition, and unconfirmed-model limitations, referenced rather than restated.
+% - `paper/context/related_work_sources.md`: `[cau2025selective]`, the only citation used, for the LODAS design this ablation extends.
+% - `paper/context/style_guide.md`: writing rules applied throughout (no filler opener or closer, active voice, one claim per sentence, no em dashes).
+%
+% No numbers beyond those already stated in `paper/sections/05_results.md` and `paper/sections/06_discussion.md` were introduced. The provisional numbers in Results Section 5.7 were not used.
+
+
+\section*{Data and code availability}
+
+The simulation framework, the analysis script that produces every reproducible
+number in Section~\ref{sec:5} (\path{scripts/compute_paper_numbers.py}), and
+the per-exchange results for all four conditions are held in the project
+repository. \pending{pending: repository URL and release decision; whether the
+transcripts and knowledge-graph databases from the delivered runs can be
+released; code for the analyses in Section~\ref{sec:5.7}}
+
+\section*{Author contributions}
+
+\pending{pending: to be agreed between the authors}
+
+\section*{Competing interests}
+
+\pending{pending: to be confirmed by each author}
+
+\section*{Acknowledgements}
+
+\pending{pending: compute acknowledgement for the DGX infrastructure, funding}
+
+
+\bibliographystyle{plainnat}
+\bibliography{../latex/references}
+
+\end{document}
