@@ -22,7 +22,7 @@ stability, and the paper reports that reversal openly.
 
 ```
 paper/
-  latex/                       upload THIS folder to Overleaf or Prism
+  Paper_v1/                    upload THIS folder to Overleaf or Prism
     main.tex                   the whole paper; a % GUIDE block opens each section
     references.bib             21 verified references (fetched from DOI resolvers)
     compare_*.png              the four figures
@@ -39,9 +39,9 @@ reports/full_ablation_summary.md   the ONLY source of numbers (regenerate: scrip
 
 ## 3. Getting the file to Overleaf or Prism, and back
 
-- **Upload:** zip `paper/latex/` and upload it as a new project (Overleaf:
+- **Upload:** zip `paper/Paper_v1/` and upload it as a new project (Overleaf:
   New Project > Upload Project). Compile `main.tex` with pdfLaTeX.
-- **Back to the repository:** the agents read `paper/latex/main.tex` in the
+- **Back to the repository:** the agents read `paper/Paper_v1/main.tex` in the
   repository, not your Overleaf copy. After a writing session, do one of:
   1. download `main.tex` from Overleaf or Prism and replace the repository
      copy;
@@ -51,18 +51,12 @@ reports/full_ablation_summary.md   the ONLY source of numbers (regenerate: scrip
 
 ## 4. Writing plan
 
-**Order.** Write the sections that rest on fixed facts first, and the
-framing last, so the opening matches what the paper actually argues:
-
-1. Method
-2. Experimental Setup
-3. Results
-4. Discussion
-5. Limitations
-6. Related Work
-7. Conclusion
-8. Introduction
-9. Abstract
+**Order.** Start with the section you can finish today with no open
+dependency. Results is the only one: every number is reproducible in the
+repo. Then Experimental Setup, then the settled parts of Method (its loop,
+clock, and model details wait on Rossetti), then Related Work, which you can
+do any time. Then Discussion, Limitations, Conclusion, Introduction, and
+Abstract last. `/paper-session next` applies this readiness rule for you.
 
 **Loop for each section.**
 
@@ -92,6 +86,22 @@ re-upload `references.bib`. Never cite from memory.
   send the draft to Rossetti.
 
 ## 5. Agent help
+
+**Writing sessions.** Start one fresh Claude session per section and type
+`/paper-session <mode> <section>`:
+
+- `next`: which section to write next
+- `plan Method`: a brief before writing (paragraph plan, numbers, citations,
+  traps)
+- `review Method`: paste your section text after the command; you get what
+  works, what does not, and language fixes
+- `polish Method`: grammar and syntax only, as minimal before → after pairs
+
+The skill reads only that section and the lines it needs, so sessions stay
+cheap and the fixed prompt prefix stays cached. Move to a new session for
+the next section.
+
+**Other agents:**
 
 | Ask | Agent | What you get |
 |---|---|---|

@@ -2,7 +2,7 @@
 
 ## Target format
 
-The manuscript is a single LaTeX file, `paper/latex/main.tex`, edited on
+The manuscript is a single LaTeX file, `paper/Paper_v1/main.tex`, edited on
 Overleaf or Prism. The folder that gets uploaded holds only `main.tex`,
 `references.bib`, and the figure PNGs. Pranav writes every section. Each
 section starts with a `% GUIDE` comment block that says what it must
